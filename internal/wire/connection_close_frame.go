@@ -11,7 +11,7 @@ import (
 	"github.com/lucas-clemente/quic-go/qerr"
 )
 
-// A ConnectionCloseFrame in QUIC
+// A ConnectionCloseFrame is a CONNECTION_CLOSE frame
 type ConnectionCloseFrame struct {
 	ErrorCode    qerr.ErrorCode
 	ReasonPhrase string
