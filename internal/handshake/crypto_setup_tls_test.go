@@ -6,8 +6,8 @@ import (
 
 	"github.com/bifurcation/mint"
 	"github.com/lucas-clemente/quic-go/internal/crypto"
+	"github.com/lucas-clemente/quic-go/internal/mocks"
 	"github.com/lucas-clemente/quic-go/internal/mocks/crypto"
-	"github.com/lucas-clemente/quic-go/internal/mocks/handshake"
 	"github.com/lucas-clemente/quic-go/internal/protocol"
 
 	. "github.com/onsi/ginkgo"
@@ -38,16 +38,16 @@ var _ = Describe("TLS Crypto Setup", func() {
 
 	It("errors when the handshake fails", func() {
 		alert := mint.AlertBadRecordMAC
-		cs.tls = mockhandshake.NewMockMintTLS(mockCtrl)
-		cs.tls.(*mockhandshake.MockMintTLS).EXPECT().Handshake().Return(alert)
+		cs.tls = mocks.NewMockMintTLS(mockCtrl)
+		cs.tls.(*mocks.MockMintTLS).EXPECT().Handshake().Return(alert)
 		err := cs.HandleCryptoStream()
 		Expect(err).To(MatchError(fmt.Errorf("TLS handshake error: %s (Alert %d)", alert.String(), alert)))
 	})
 
 	It("derives keys", func() {
-		cs.tls = mockhandshake.NewMockMintTLS(mockCtrl)
-		cs.tls.(*mockhandshake.MockMintTLS).EXPECT().Handshake().Return(mint.AlertNoAlert)
-		cs.tls.(*mockhandshake.MockMintTLS).EXPECT().State().Return(mint.StateServerConnected)
+		cs.tls = mocks.NewMockMintTLS(mockCtrl)
+		cs.tls.(*mocks.MockMintTLS).EXPECT().Handshake().Return(mint.AlertNoAlert)
+		cs.tls.(*mocks.MockMintTLS).EXPECT().State().Return(mint.StateServerConnected)
 		cs.keyDerivation = mockKeyDerivation
 		err := cs.HandleCryptoStream()
 		Expect(err).ToNot(HaveOccurred())
@@ -56,10 +56,10 @@ var _ = Describe("TLS Crypto Setup", func() {
 	})
 
 	It("handshakes until it is connected", func() {
-		cs.tls = mockhandshake.NewMockMintTLS(mockCtrl)
-		cs.tls.(*mockhandshake.MockMintTLS).EXPECT().Handshake().Return(mint.AlertNoAlert).Times(10)
-		cs.tls.(*mockhandshake.MockMintTLS).EXPECT().State().Return(mint.StateServerNegotiated).Times(9)
-		cs.tls.(*mockhandshake.MockMintTLS).EXPECT().State().Return(mint.StateServerConnected)
+		cs.tls = mocks.NewMockMintTLS(mockCtrl)
+		cs.tls.(*mocks.MockMintTLS).EXPECT().Handshake().Return(mint.AlertNoAlert).Times(10)
+		cs.tls.(*mocks.MockMintTLS).EXPECT().State().Return(mint.StateServerNegotiated).Times(9)
+		cs.tls.(*mocks.MockMintTLS).EXPECT().State().Return(mint.StateServerConnected)
 		cs.keyDerivation = mockKeyDerivation
 		err := cs.HandleCryptoStream()
 		Expect(err).ToNot(HaveOccurred())
@@ -68,9 +68,9 @@ var _ = Describe("TLS Crypto Setup", func() {
 
 	Context("escalating crypto", func() {
 		doHandshake := func() {
-			cs.tls = mockhandshake.NewMockMintTLS(mockCtrl)
-			cs.tls.(*mockhandshake.MockMintTLS).EXPECT().Handshake().Return(mint.AlertNoAlert)
-			cs.tls.(*mockhandshake.MockMintTLS).EXPECT().State().Return(mint.StateServerConnected)
+			cs.tls = mocks.NewMockMintTLS(mockCtrl)
+			cs.tls.(*mocks.MockMintTLS).EXPECT().Handshake().Return(mint.AlertNoAlert)
+			cs.tls.(*mocks.MockMintTLS).EXPECT().State().Return(mint.StateServerConnected)
 			cs.keyDerivation = mockKeyDerivation
 			err := cs.HandleCryptoStream()
 			Expect(err).ToNot(HaveOccurred())
@@ -199,9 +199,9 @@ var _ = Describe("TLS Crypto Setup, for the client", func() {
 	})
 
 	It("returns when a retry is performed", func() {
-		cs.tls = mockhandshake.NewMockMintTLS(mockCtrl)
-		cs.tls.(*mockhandshake.MockMintTLS).EXPECT().Handshake().Return(mint.AlertNoAlert)
-		cs.tls.(*mockhandshake.MockMintTLS).EXPECT().State().Return(mint.StateClientStart)
+		cs.tls = mocks.NewMockMintTLS(mockCtrl)
+		cs.tls.(*mocks.MockMintTLS).EXPECT().Handshake().Return(mint.AlertNoAlert)
+		cs.tls.(*mocks.MockMintTLS).EXPECT().State().Return(mint.StateClientStart)
 		err := cs.HandleCryptoStream()
 		Expect(err).To(MatchError(ErrCloseSessionForRetry))
 	})

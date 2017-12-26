@@ -4,12 +4,11 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/lucas-clemente/quic-go/internal/mocks"
-	"github.com/lucas-clemente/quic-go/internal/mocks/handshake"
-
 	"github.com/bifurcation/mint"
 	"github.com/lucas-clemente/quic-go/internal/crypto"
 	"github.com/lucas-clemente/quic-go/internal/handshake"
+	"github.com/lucas-clemente/quic-go/internal/mocks"
+	"github.com/lucas-clemente/quic-go/internal/mocks/handshake"
 	"github.com/lucas-clemente/quic-go/internal/protocol"
 	"github.com/lucas-clemente/quic-go/internal/testdata"
 	"github.com/lucas-clemente/quic-go/internal/wire"
@@ -22,14 +21,14 @@ var _ = Describe("Stateless TLS handling", func() {
 		conn        *mockPacketConn
 		server      *serverTLS
 		sessionChan <-chan packetHandler
-		mintTLS     *mockhandshake.MockMintTLS
-		extHandler  *mocks.MockTLSExtensionHandler
+		mintTLS     *mocks.MockMintTLS
+		extHandler  *mockhandshake.MockTLSExtensionHandler
 		mintReply   io.Writer
 	)
 
 	BeforeEach(func() {
-		mintTLS = mockhandshake.NewMockMintTLS(mockCtrl)
-		extHandler = mocks.NewMockTLSExtensionHandler(mockCtrl)
+		mintTLS = mocks.NewMockMintTLS(mockCtrl)
+		extHandler = mockhandshake.NewMockTLSExtensionHandler(mockCtrl)
 		conn = newMockPacketConn()
 		config := &Config{
 			Versions: []protocol.VersionNumber{protocol.VersionTLS},
