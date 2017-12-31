@@ -56,6 +56,9 @@ type cubicSender struct {
 	// ACK counter for the Reno implementation.
 	congestionWindowCount protocol.ByteCount
 
+	// time that the last packet was sent
+	lastPacketSentTime time.Time
+
 	initialCongestionWindow    protocol.PacketNumber
 	initialMaxCongestionWindow protocol.PacketNumber
 }
@@ -76,15 +79,19 @@ func NewCubicSender(clock Clock, rttStats *RTTStats, reno bool, initialCongestio
 	}
 }
 
-func (c *cubicSender) TimeUntilSend(now time.Time, bytesInFlight protocol.ByteCount) time.Duration {
+// TimeUntilSend returns when the next packet should be sent.
+func (c *cubicSender) TimeUntilSend(bytesInFlight protocol.ByteCount) time.Time {
 	if c.InRecovery() {
 		// PRR is used when in recovery.
-		return c.prr.TimeUntilSend(c.GetCongestionWindow(), bytesInFlight, c.GetSlowStartThreshold())
+		if c.prr.TimeUntilSend(c.GetCongestionWindow(), bytesInFlight, c.GetSlowStartThreshold()) == 0 {
+			return c.lastPacketSentTime
+		}
 	}
-	if c.GetCongestionWindow() > bytesInFlight {
-		return 0
+	delay := c.rttStats.SmoothedRTT() / time.Duration(2*c.GetCongestionWindow()/protocol.DefaultTCPMSS)
+	if !c.InSlowStart() { // adjust delay, such that it's 1.25*cwd/rtt
+		delay = delay * 8 / 5
 	}
-	return utils.InfDuration
+	return c.lastPacketSentTime.Add(delay)
 }
 
 func (c *cubicSender) OnPacketSent(sentTime time.Time, bytesInFlight protocol.ByteCount, packetNumber protocol.PacketNumber, bytes protocol.ByteCount, isRetransmittable bool) bool {
@@ -97,6 +104,7 @@ func (c *cubicSender) OnPacketSent(sentTime time.Time, bytesInFlight protocol.By
 		c.prr.OnPacketSent(bytes)
 	}
 	c.largestSentPacketNumber = packetNumber
+	c.lastPacketSentTime = sentTime
 	c.hybridSlowStart.OnPacketSent(packetNumber)
 	return true
 }
