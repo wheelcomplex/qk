@@ -861,7 +861,8 @@ var _ = Describe("Session", func() {
 			sph.EXPECT().GetLeastUnacked().AnyTimes()
 			sph.EXPECT().ShouldSendRetransmittablePacket().Times(2)
 			sph.EXPECT().SentPacket(gomock.Any()).Times(2)
-			sph.EXPECT().TimeUntilSend().Return(time.Now().Add(200 * time.Millisecond))
+			sph.EXPECT().TimeUntilSend().Return(time.Now())
+			sph.EXPECT().TimeUntilSend().Return(time.Now().Add(300 * time.Millisecond))
 			sph.EXPECT().TimeUntilSend().Return(time.Now().Add(time.Hour))
 			sph.EXPECT().SendingAllowed().Do(func() { // after sending the first packet
 				// make sure there's something to send

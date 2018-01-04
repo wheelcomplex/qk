@@ -76,6 +76,7 @@ func NewCubicSender(clock Clock, rttStats *RTTStats, reno bool, initialCongestio
 		numConnections:             defaultNumConnections,
 		cubic:                      NewCubic(clock),
 		reno:                       reno,
+		lastPacketSentTime:         clock.Now(),
 	}
 }
 
