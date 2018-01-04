@@ -408,22 +408,8 @@ runLoop:
 			continue
 		}
 
-		s.pacingDeadline = time.Time{}
-		sendingAllowed := s.sentPacketHandler.SendingAllowed()
-		if !sendingAllowed { // if congestion limited, at least try sending an ACK frame
-			if err := s.maybeSendAckOnlyPacket(); err != nil {
-				s.closeLocal(err)
-			}
-		} else {
-			sentPacket, err := s.sendPacket()
-			if err != nil {
-				s.closeLocal(err)
-			}
-			if sentPacket {
-				// Only start the pacing timer if actually a packet was sent.
-				// If one packet was sent, there will probably be more to send when calling sendPacket again.
-				s.pacingDeadline = s.sentPacketHandler.TimeUntilSend()
-			}
+		if err := s.sendPackets(); err != nil {
+			s.closeLocal(err)
 		}
 
 		if !s.receivedTooManyUndecrytablePacketsTime.IsZero() && s.receivedTooManyUndecrytablePacketsTime.Add(protocol.PublicResetTimeout).Before(now) && len(s.undecryptablePackets) != 0 {
@@ -725,6 +711,22 @@ func (s *session) processTransportParameters(params *handshake.TransportParamete
 	s.connFlowController.UpdateSendWindow(params.ConnectionFlowControlWindow)
 	// the crypto stream is the only open stream at this moment
 	// so we don't need to update stream flow control windows
+}
+
+func (s *session) sendPackets() error {
+	s.pacingDeadline = time.Time{}
+	sendingAllowed := s.sentPacketHandler.SendingAllowed()
+	if !sendingAllowed { // if congestion limited, at least try sending an ACK frame
+		return s.maybeSendAckOnlyPacket()
+	}
+
+	sentPacket, err := s.sendPacket()
+	if sentPacket {
+		// Only start the pacing timer if actually a packet was sent.
+		// If one packet was sent, there will probably be more to send when calling sendPacket again.
+		s.pacingDeadline = s.sentPacketHandler.TimeUntilSend()
+	}
+	return err
 }
 
 func (s *session) maybeSendAckOnlyPacket() error {
