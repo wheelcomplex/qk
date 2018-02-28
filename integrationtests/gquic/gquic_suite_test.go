@@ -15,10 +15,7 @@ import (
 	"testing"
 )
 
-var (
-	clientPath string
-	serverPath string
-)
+var clientPath string
 
 func TestIntegration(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -41,5 +38,4 @@ func init() {
 		panic("Failed to get current path")
 	}
 	clientPath = filepath.Join(thisfile, fmt.Sprintf("../../../../quic-clients/client-%s-debug", runtime.GOOS))
-	serverPath = filepath.Join(thisfile, fmt.Sprintf("../../../../quic-clients/server-%s-debug", runtime.GOOS))
 }
