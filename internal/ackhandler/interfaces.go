@@ -33,6 +33,7 @@ type SentPacketHandler interface {
 	GetLowestPacketNotConfirmedAcked() protocol.PacketNumber
 	DequeuePacketForRetransmission() (packet *Packet)
 	GetLeastUnacked() protocol.PacketNumber
+	GetNextPacketNumber() protocol.PacketNumber
 
 	GetAlarmTimeout() time.Time
 	OnAlarm()

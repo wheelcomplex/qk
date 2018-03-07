@@ -57,6 +57,7 @@ var _ = Describe("Packet packer", func() {
 		publicHeaderLen  protocol.ByteCount
 		maxFrameSize     protocol.ByteCount
 		mockStreamFramer *MockStreamFrameSource
+		nextPacketNumber protocol.PacketNumber
 	)
 
 	BeforeEach(func() {
@@ -65,11 +66,16 @@ var _ = Describe("Packet packer", func() {
 		mockSender.EXPECT().onHasStreamData(gomock.Any()).AnyTimes()
 		mockStreamFramer = NewMockStreamFrameSource(mockCtrl)
 
+		getNextPacketNumber := func() protocol.PacketNumber {
+			defer func() { nextPacketNumber++ }()
+			return nextPacketNumber
+		}
+
 		packer = newPacketPacker(
 			0x1337,
-			1,
 			&mockCryptoSetup{encLevelSeal: protocol.EncryptionForwardSecure},
 			mockStreamFramer,
+			getNextPacketNumber,
 			protocol.PerspectiveServer,
 			version,
 		)
@@ -269,7 +275,7 @@ var _ = Describe("Packet packer", func() {
 	It("packs a STOP_WAITING frame first", func() {
 		mockStreamFramer.EXPECT().HasCryptoStreamData()
 		mockStreamFramer.EXPECT().PopStreamFrames(gomock.Any())
-		packer.packetNumberGenerator.next = 15
+		nextPacketNumber = 15
 		swf := &wire.StopWaitingFrame{LeastUnacked: 10}
 		packer.QueueControlFrame(&wire.RstStreamFrame{})
 		packer.QueueControlFrame(swf)
@@ -284,7 +290,7 @@ var _ = Describe("Packet packer", func() {
 		mockStreamFramer.EXPECT().HasCryptoStreamData()
 		mockStreamFramer.EXPECT().PopStreamFrames(gomock.Any())
 		packetNumber := protocol.PacketNumber(0xDECAFB) // will result in a 4 byte packet number
-		packer.packetNumberGenerator.next = packetNumber
+		nextPacketNumber = packetNumber
 		swf := &wire.StopWaitingFrame{LeastUnacked: packetNumber - 0x100}
 		packer.QueueControlFrame(&wire.RstStreamFrame{})
 		packer.QueueControlFrame(swf)
@@ -359,9 +365,8 @@ var _ = Describe("Packet packer", func() {
 	It("only increases the packet number when there is an actual packet to send", func() {
 		mockStreamFramer.EXPECT().HasCryptoStreamData().Times(3)
 		mockStreamFramer.EXPECT().PopStreamFrames(gomock.Any()).Times(3)
-		packer.packetNumberGenerator.next = 10
-		packer.packetNumberGenerator.nextToSkip = 1000
 		// first pack a packet
+		nextPacketNumber = 10
 		packer.controlFrames = []wire.Frame{&wire.MaxDataFrame{}}
 		p, err := packer.PackPacket()
 		Expect(err).ToNot(HaveOccurred())
@@ -737,7 +742,7 @@ var _ = Describe("Packet packer", func() {
 
 	Context("retransmission of forward-secure packets", func() {
 		BeforeEach(func() {
-			packer.packetNumberGenerator.next = 15
+			nextPacketNumber = 15
 			packer.stopWaiting = &wire.StopWaitingFrame{LeastUnacked: 7}
 		})
 
@@ -886,13 +891,14 @@ var _ = Describe("Packet packer", func() {
 		})
 
 		It("packs ACK packets with STOP_WAITING frames", func() {
+			nextPacketNumber = 42
 			packer.QueueControlFrame(&wire.AckFrame{})
 			packer.QueueControlFrame(&wire.StopWaitingFrame{})
 			p, err := packer.PackAckPacket()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(p.frames).To(Equal([]wire.Frame{
 				&wire.AckFrame{DelayTime: math.MaxInt64},
-				&wire.StopWaitingFrame{PacketNumber: 1, PacketNumberLen: 2},
+				&wire.StopWaitingFrame{PacketNumber: 42, PacketNumberLen: 2},
 			}))
 		})
 	})

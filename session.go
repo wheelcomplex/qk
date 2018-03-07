@@ -327,7 +327,7 @@ func (s *session) postSetup(initialPacketNumber protocol.PacketNumber) error {
 	s.lastNetworkActivityTime = now
 	s.sessionCreationTime = now
 
-	s.sentPacketHandler = ackhandler.NewSentPacketHandler(s.rttStats)
+	s.sentPacketHandler = ackhandler.NewSentPacketHandler(s.rttStats, initialPacketNumber)
 	s.receivedPacketHandler = ackhandler.NewReceivedPacketHandler(s.rttStats, s.version)
 
 	if s.version.UsesTLS() {
@@ -337,9 +337,9 @@ func (s *session) postSetup(initialPacketNumber protocol.PacketNumber) error {
 	}
 	s.streamFramer = newStreamFramer(s.cryptoStream, s.streamsMap, s.version)
 	s.packer = newPacketPacker(s.connectionID,
-		initialPacketNumber,
 		s.cryptoSetup,
 		s.streamFramer,
+		s.sentPacketHandler.GetNextPacketNumber,
 		s.perspective,
 		s.version,
 	)

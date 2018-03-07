@@ -33,6 +33,7 @@ type sentPacketHandler struct {
 	lastSentPacketNumber protocol.PacketNumber
 	nextPacketSendTime   time.Time
 	skippedPackets       []protocol.PacketNumber
+	png                  *packetNumberGenerator
 
 	largestAcked                 protocol.PacketNumber
 	largestReceivedPacketWithAck protocol.PacketNumber
@@ -66,7 +67,7 @@ type sentPacketHandler struct {
 }
 
 // NewSentPacketHandler creates a new sentPacketHandler
-func NewSentPacketHandler(rttStats *congestion.RTTStats) SentPacketHandler {
+func NewSentPacketHandler(rttStats *congestion.RTTStats, initialPacketNumber protocol.PacketNumber) SentPacketHandler {
 	congestion := congestion.NewCubicSender(
 		congestion.DefaultClock{},
 		rttStats,
@@ -79,6 +80,7 @@ func NewSentPacketHandler(rttStats *congestion.RTTStats) SentPacketHandler {
 		packetHistory:      NewPacketList(),
 		stopWaitingManager: stopWaitingManager{},
 		rttStats:           rttStats,
+		png:                newPacketNumberGenerator(initialPacketNumber, protocol.SkipPacketAveragePeriodLength),
 		congestion:         congestion,
 	}
 }
@@ -352,6 +354,10 @@ func (h *sentPacketHandler) DequeuePacketForRetransmission() *Packet {
 	h.retransmissionQueue[len(h.retransmissionQueue)-1] = nil
 	h.retransmissionQueue = h.retransmissionQueue[:len(h.retransmissionQueue)-1]
 	return packet
+}
+
+func (h *sentPacketHandler) GetNextPacketNumber() protocol.PacketNumber {
+	return h.png.Pop()
 }
 
 func (h *sentPacketHandler) GetLeastUnacked() protocol.PacketNumber {

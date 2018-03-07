@@ -899,13 +899,14 @@ var _ = Describe("Session", func() {
 			sph.EXPECT().SendingAllowed()
 			sph.EXPECT().GetStopWaitingFrame(false).Return(swf)
 			sph.EXPECT().TimeUntilSend()
+			sph.EXPECT().GetNextPacketNumber().Return(protocol.PacketNumber(0x1338)).AnyTimes()
 			sph.EXPECT().SentPacket(gomock.Any()).Do(func(p *ackhandler.Packet) {
 				Expect(p.Frames).To(HaveLen(2))
 				Expect(p.Frames[0]).To(BeAssignableToTypeOf(&wire.AckFrame{}))
 				Expect(p.Frames[1]).To(Equal(swf))
 			})
 			sess.sentPacketHandler = sph
-			sess.packer.packetNumberGenerator.next = 0x1338
+			sess.packer.getNextPacketNumber = sph.GetNextPacketNumber
 			sess.receivedPacketHandler.ReceivedPacket(1, time.Now(), true)
 			done := make(chan struct{})
 			go func() {
@@ -934,7 +935,6 @@ var _ = Describe("Session", func() {
 				Expect(p.Frames[0]).To(BeAssignableToTypeOf(&wire.AckFrame{}))
 			})
 			sess.sentPacketHandler = sph
-			sess.packer.packetNumberGenerator.next = 0x1338
 			sess.receivedPacketHandler.ReceivedPacket(1, time.Now(), true)
 			go func() {
 				defer GinkgoRecover()
@@ -953,12 +953,17 @@ var _ = Describe("Session", func() {
 	Context("retransmissions", func() {
 		var sph *mockackhandler.MockSentPacketHandler
 		BeforeEach(func() {
-			// a STOP_WAITING frame is added, so make sure the packet number of the new package is higher than the packet number of the retransmitted packet
-			sess.packer.packetNumberGenerator.next = 0x1337 + 10
 			sess.packer.hasSentPacket = true // make sure this is not the first packet the packer sends
 			sph = mockackhandler.NewMockSentPacketHandler(mockCtrl)
 			sph.EXPECT().GetLeastUnacked().AnyTimes()
+			// a STOP_WAITING frame is added, so make sure the packet number of the new package is higher than the packet number of the retransmitted packet
+			nextPacketNumber := protocol.PacketNumber(0x1337 + 10)
+			sph.EXPECT().GetNextPacketNumber().DoAndReturn(func() protocol.PacketNumber {
+				defer func() { nextPacketNumber++ }()
+				return nextPacketNumber
+			}).AnyTimes()
 			sess.sentPacketHandler = sph
+			sess.packer.getNextPacketNumber = sph.GetNextPacketNumber
 			sess.packer.cryptoSetup = &mockCryptoSetup{encLevelSeal: protocol.EncryptionForwardSecure}
 		})
 
@@ -1070,33 +1075,6 @@ var _ = Describe("Session", func() {
 		})
 	})
 
-	It("retransmits RTO packets", func() {
-		sess.packer.hasSentPacket = true // make sure this is not the first packet the packer sends
-		sess.sentPacketHandler.SetHandshakeComplete()
-		n := protocol.PacketNumber(10)
-		sess.packer.cryptoSetup = &mockCryptoSetup{encLevelSeal: protocol.EncryptionForwardSecure}
-		// We simulate consistently low RTTs, so that the test works faster
-		rtt := time.Millisecond
-		sess.rttStats.UpdateRTT(rtt, 0, time.Now())
-		Expect(sess.rttStats.SmoothedRTT()).To(Equal(rtt)) // make sure it worked
-		sess.packer.packetNumberGenerator.next = n + 1
-		// Now, we send a single packet, and expect that it was retransmitted later
-		sess.sentPacketHandler.SentPacket(&ackhandler.Packet{
-			PacketNumber: n,
-			Length:       1,
-			Frames: []wire.Frame{&wire.StreamFrame{
-				Data: []byte("foobar"),
-			}},
-			EncryptionLevel: protocol.EncryptionForwardSecure,
-		})
-		go sess.run()
-		defer sess.Close(nil)
-		sess.scheduleSending()
-		Eventually(func() int { return len(mconn.written) }).ShouldNot(BeZero())
-		Expect(mconn.written).To(Receive(ContainSubstring("foobar")))
-		streamManager.EXPECT().CloseWithError(gomock.Any())
-	})
-
 	Context("scheduling sending", func() {
 		BeforeEach(func() {
 			sess.packer.hasSentPacket = true // make sure this is not the first packet the packer sends
@@ -1104,7 +1082,6 @@ var _ = Describe("Session", func() {
 		})
 
 		It("sends when scheduleSending is called", func() {
-			sess.packer.packetNumberGenerator.next = 10000
 			f := &wire.StreamFrame{
 				StreamID: 0x5,
 				Data:     []byte("foobar"),
@@ -1115,6 +1092,7 @@ var _ = Describe("Session", func() {
 			sph.EXPECT().SendingAllowed().AnyTimes().Return(true)
 			sph.EXPECT().ShouldSendNumPackets().AnyTimes().Return(1)
 			sph.EXPECT().GetLeastUnacked().AnyTimes()
+			sph.EXPECT().GetNextPacketNumber().Return(protocol.PacketNumber(0x4000)).AnyTimes()
 			sph.EXPECT().GetStopWaitingFrame(true).Return(&wire.StopWaitingFrame{LeastUnacked: 10})
 			sph.EXPECT().DequeuePacketForRetransmission().Return(&ackhandler.Packet{
 				PacketNumber:    0x1337,
@@ -1123,6 +1101,7 @@ var _ = Describe("Session", func() {
 			})
 			sph.EXPECT().SentPacket(gomock.Any())
 			sess.sentPacketHandler = sph
+			sess.packer.getNextPacketNumber = sph.GetNextPacketNumber
 
 			done := make(chan struct{})
 			go func() {

@@ -85,6 +85,18 @@ func (mr *MockSentPacketHandlerMockRecorder) GetLowestPacketNotConfirmedAcked() 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLowestPacketNotConfirmedAcked", reflect.TypeOf((*MockSentPacketHandler)(nil).GetLowestPacketNotConfirmedAcked))
 }
 
+// GetNextPacketNumber mocks base method
+func (m *MockSentPacketHandler) GetNextPacketNumber() protocol.PacketNumber {
+	ret := m.ctrl.Call(m, "GetNextPacketNumber")
+	ret0, _ := ret[0].(protocol.PacketNumber)
+	return ret0
+}
+
+// GetNextPacketNumber indicates an expected call of GetNextPacketNumber
+func (mr *MockSentPacketHandlerMockRecorder) GetNextPacketNumber() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNextPacketNumber", reflect.TypeOf((*MockSentPacketHandler)(nil).GetNextPacketNumber))
+}
+
 // GetStopWaitingFrame mocks base method
 func (m *MockSentPacketHandler) GetStopWaitingFrame(arg0 bool) *wire.StopWaitingFrame {
 	ret := m.ctrl.Call(m, "GetStopWaitingFrame", arg0)

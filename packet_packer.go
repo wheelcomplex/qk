@@ -31,8 +31,8 @@ type packetPacker struct {
 	version      protocol.VersionNumber
 	cryptoSetup  handshake.CryptoSetup
 
-	packetNumberGenerator *packetNumberGenerator
-	nextPacketNumber      protocol.PacketNumber
+	getNextPacketNumber func() protocol.PacketNumber
+	nextPacketNumber    protocol.PacketNumber
 
 	streams streamFrameSource
 
@@ -48,20 +48,20 @@ type packetPacker struct {
 }
 
 func newPacketPacker(connectionID protocol.ConnectionID,
-	initialPacketNumber protocol.PacketNumber,
 	cryptoSetup handshake.CryptoSetup,
 	streamFramer streamFrameSource,
+	getNextPacketNumber func() protocol.PacketNumber,
 	perspective protocol.Perspective,
 	version protocol.VersionNumber,
 ) *packetPacker {
 	return &packetPacker{
-		cryptoSetup:           cryptoSetup,
-		connectionID:          connectionID,
-		perspective:           perspective,
-		version:               version,
-		streams:               streamFramer,
-		packetNumberGenerator: newPacketNumberGenerator(initialPacketNumber, protocol.SkipPacketAveragePeriodLength),
-		nextPacketNumber:      protocol.PacketNumberInvalid,
+		cryptoSetup:         cryptoSetup,
+		connectionID:        connectionID,
+		perspective:         perspective,
+		version:             version,
+		streams:             streamFramer,
+		getNextPacketNumber: getNextPacketNumber,
+		nextPacketNumber:    protocol.PacketNumberInvalid,
 	}
 }
 
@@ -402,7 +402,7 @@ func (p *packetPacker) QueueControlFrame(frame wire.Frame) {
 
 func (p *packetPacker) getHeader(encLevel protocol.EncryptionLevel) *wire.Header {
 	if p.nextPacketNumber == protocol.PacketNumberInvalid {
-		p.nextPacketNumber = p.packetNumberGenerator.Pop()
+		p.nextPacketNumber = p.getNextPacketNumber()
 	}
 	packetNumberLen := protocol.GetPacketNumberLengthForHeader(p.nextPacketNumber, p.leastUnacked)
 
