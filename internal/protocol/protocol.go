@@ -4,12 +4,6 @@ import (
 	"fmt"
 )
 
-// A PacketNumber in QUIC
-type PacketNumber uint64
-
-// PacketNumberLen is the length of the packet number in bytes
-type PacketNumberLen uint8
-
 const (
 	// PacketNumberLenInvalid is the default value and not a valid length for a packet number
 	PacketNumberLenInvalid PacketNumberLen = 0

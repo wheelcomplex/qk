@@ -1,5 +1,17 @@
 package protocol
 
+import (
+	"math"
+)
+
+// A PacketNumber in QUIC
+type PacketNumber uint64
+
+// PacketNumberLen is the length of the packet number in bytes
+type PacketNumberLen uint8
+
+const PacketNumberInvalid = PacketNumber(math.MaxUint64)
+
 // InferPacketNumber calculates the packet number based on the received packet number, its length and the last seen packet number
 func InferPacketNumber(packetNumberLength PacketNumberLen, lastPacketNumber PacketNumber, wirePacketNumber PacketNumber) PacketNumber {
 	epochDelta := PacketNumber(1) << (uint8(packetNumberLength) * 8)

@@ -24,10 +24,6 @@ func newPacketNumberGenerator(initial, averagePeriod protocol.PacketNumber) *pac
 	}
 }
 
-func (p *packetNumberGenerator) Peek() protocol.PacketNumber {
-	return p.next
-}
-
 func (p *packetNumberGenerator) Pop() protocol.PacketNumber {
 	next := p.next
 

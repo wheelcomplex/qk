@@ -32,7 +32,9 @@ type packetPacker struct {
 	cryptoSetup  handshake.CryptoSetup
 
 	packetNumberGenerator *packetNumberGenerator
-	streams               streamFrameSource
+	nextPacketNumber      protocol.PacketNumber
+
+	streams streamFrameSource
 
 	controlFrameMutex sync.Mutex
 	controlFrames     []wire.Frame
@@ -59,6 +61,7 @@ func newPacketPacker(connectionID protocol.ConnectionID,
 		version:               version,
 		streams:               streamFramer,
 		packetNumberGenerator: newPacketNumberGenerator(initialPacketNumber, protocol.SkipPacketAveragePeriodLength),
+		nextPacketNumber:      protocol.PacketNumberInvalid,
 	}
 }
 
@@ -326,10 +329,7 @@ func (p *packetPacker) packCryptoPacket() (*packedPacket, error) {
 	}, nil
 }
 
-func (p *packetPacker) composeNextPacket(
-	maxFrameSize protocol.ByteCount,
-	canSendStreamFrames bool,
-) ([]wire.Frame, error) {
+func (p *packetPacker) composeNextPacket(maxFrameSize protocol.ByteCount, canSendStreamFrames bool) ([]wire.Frame, error) {
 	var payloadLength protocol.ByteCount
 	var payloadFrames []wire.Frame
 
@@ -401,12 +401,14 @@ func (p *packetPacker) QueueControlFrame(frame wire.Frame) {
 }
 
 func (p *packetPacker) getHeader(encLevel protocol.EncryptionLevel) *wire.Header {
-	pnum := p.packetNumberGenerator.Peek()
-	packetNumberLen := protocol.GetPacketNumberLengthForHeader(pnum, p.leastUnacked)
+	if p.nextPacketNumber == protocol.PacketNumberInvalid {
+		p.nextPacketNumber = p.packetNumberGenerator.Pop()
+	}
+	packetNumberLen := protocol.GetPacketNumberLengthForHeader(p.nextPacketNumber, p.leastUnacked)
 
 	header := &wire.Header{
 		ConnectionID:    p.connectionID,
-		PacketNumber:    pnum,
+		PacketNumber:    p.nextPacketNumber,
 		PacketNumberLen: packetNumberLen,
 	}
 
@@ -481,10 +483,7 @@ func (p *packetPacker) writeAndSealPacket(
 	_ = sealer.Seal(raw[payloadStartIndex:payloadStartIndex], raw[payloadStartIndex:], header.PacketNumber, raw[:payloadStartIndex])
 	raw = raw[0 : buffer.Len()+sealer.Overhead()]
 
-	num := p.packetNumberGenerator.Pop()
-	if num != header.PacketNumber {
-		return nil, errors.New("packetPacker BUG: Peeked and Popped packet numbers do not match")
-	}
+	p.nextPacketNumber = protocol.PacketNumberInvalid
 	p.hasSentPacket = true
 	return raw, nil
 }

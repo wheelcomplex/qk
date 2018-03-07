@@ -357,22 +357,26 @@ var _ = Describe("Packet packer", func() {
 	})
 
 	It("only increases the packet number when there is an actual packet to send", func() {
-		mockStreamFramer.EXPECT().HasCryptoStreamData().Times(2)
-		mockStreamFramer.EXPECT().PopStreamFrames(gomock.Any())
+		mockStreamFramer.EXPECT().HasCryptoStreamData().Times(3)
+		mockStreamFramer.EXPECT().PopStreamFrames(gomock.Any()).Times(3)
+		packer.packetNumberGenerator.next = 10
 		packer.packetNumberGenerator.nextToSkip = 1000
+		// first pack a packet
+		packer.controlFrames = []wire.Frame{&wire.MaxDataFrame{}}
 		p, err := packer.PackPacket()
-		Expect(p).To(BeNil())
 		Expect(err).ToNot(HaveOccurred())
-		Expect(packer.packetNumberGenerator.Peek()).To(Equal(protocol.PacketNumber(1)))
-		mockStreamFramer.EXPECT().PopStreamFrames(gomock.Any()).Return([]*wire.StreamFrame{{
-			StreamID: 5,
-			Data:     []byte{0xDE, 0xCA, 0xFB, 0xAD},
-		}})
+		Expect(p).ToNot(BeNil())
+		Expect(p.header.PacketNumber).To(Equal(protocol.PacketNumber(10)))
+		// now try packing, but without data, so that no packet can be sent
+		p, err = packer.PackPacket()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(p).To(BeNil())
+		// then pack another packet
+		packer.controlFrames = []wire.Frame{&wire.MaxDataFrame{}}
 		p, err = packer.PackPacket()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(p).ToNot(BeNil())
-		Expect(p.header.PacketNumber).To(Equal(protocol.PacketNumber(1)))
-		Expect(packer.packetNumberGenerator.Peek()).To(Equal(protocol.PacketNumber(2)))
+		Expect(p.header.PacketNumber).To(Equal(protocol.PacketNumber(11)))
 	})
 
 	Context("making ACK packets retransmittable", func() {

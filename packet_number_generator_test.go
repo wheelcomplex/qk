@@ -25,21 +25,10 @@ var _ = Describe("Packet Number Generator", func() {
 		Expect(num).To(Equal(protocol.PacketNumber(1)))
 	})
 
-	It("allows peeking", func() {
-		png.nextToSkip = 1000
-		Expect(png.Peek()).To(Equal(protocol.PacketNumber(1)))
-		Expect(png.Peek()).To(Equal(protocol.PacketNumber(1)))
-		num := png.Pop()
-		Expect(num).To(Equal(protocol.PacketNumber(1)))
-		Expect(png.Peek()).To(Equal(protocol.PacketNumber(2)))
-		Expect(png.Peek()).To(Equal(protocol.PacketNumber(2)))
-	})
-
 	It("skips a packet number", func() {
 		png.nextToSkip = 2
 		num := png.Pop()
 		Expect(num).To(Equal(protocol.PacketNumber(1)))
-		Expect(png.Peek()).To(Equal(protocol.PacketNumber(3)))
 		num = png.Pop()
 		Expect(num).To(Equal(protocol.PacketNumber(3)))
 	})
