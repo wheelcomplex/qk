@@ -613,7 +613,7 @@ func (s *session) handlePacketImpl(p *receivedPacket) error {
 	hdr := p.header
 	data := p.data
 
-	packet, err := s.unpacker.Unpack(hdr, data[len(hdr.Raw):])
+	packet, err := s.unpacker.Unpack(hdr, data)
 	if s.logger.Debug() {
 		if err != nil {
 			s.logger.Debugf("<- Reading packet 0x%x (%d bytes) for connection %s", hdr.PacketNumber, len(data), hdr.DestConnectionID)
