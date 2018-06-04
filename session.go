@@ -122,12 +122,9 @@ type session struct {
 	handshakeEvent    <-chan struct{}
 	handshakeComplete bool
 
-	receivedFirstPacket              bool // since packet numbers start at 0, we can't use largestRcvdPacketNumber != 0 for this
+	receivedFirstPacket              bool
 	receivedFirstForwardSecurePacket bool
 	lastRcvdPacketNumber             protocol.PacketNumber
-	// Used to calculate the next packet number from the truncated wire
-	// representation, and sent back in public reset packets
-	largestRcvdPacketNumber protocol.PacketNumber
 
 	sessionCreationTime     time.Time
 	lastNetworkActivityTime time.Time
@@ -627,14 +624,6 @@ func (s *session) handlePacketImpl(p *receivedPacket) error {
 		p.rcvTime = time.Now()
 	}
 
-	// Calculate packet number
-	hdr.PacketNumber = protocol.InferPacketNumber(
-		hdr.PacketNumberLen,
-		s.largestRcvdPacketNumber,
-		hdr.PacketNumber,
-		s.version,
-	)
-
 	packet, err := s.unpacker.Unpack(hdr.Raw, hdr, p.data)
 	if s.logger.Debug() {
 		if err != nil {
@@ -672,8 +661,6 @@ func (s *session) handlePacketImpl(p *receivedPacket) error {
 	}
 
 	s.lastRcvdPacketNumber = hdr.PacketNumber
-	// Only do this after decrypting, so we are sure the packet is not attacker-controlled
-	s.largestRcvdPacketNumber = utils.MaxPacketNumber(s.largestRcvdPacketNumber, hdr.PacketNumber)
 
 	// If this is a Retry packet, there's no need to send an ACK.
 	// The session will be closed and recreated as soon as the crypto setup processed the HRR.

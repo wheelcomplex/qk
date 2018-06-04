@@ -586,14 +586,13 @@ var _ = Describe("Session", func() {
 			hdr = &wire.Header{PacketNumberLen: protocol.PacketNumberLen6}
 		})
 
-		It("sets the {last,largest}RcvdPacketNumber", func() {
+		It("sets the lastRcvdPacketNumber", func() {
 			hdr.PacketNumber = 5
 			hdr.Raw = []byte("raw header")
 			unpacker.EXPECT().Unpack([]byte("raw header"), hdr, []byte("foobar")).Return(&unpackedPacket{}, nil)
 			err := sess.handlePacketImpl(&receivedPacket{header: hdr, data: []byte("foobar")})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(sess.lastRcvdPacketNumber).To(Equal(protocol.PacketNumber(5)))
-			Expect(sess.largestRcvdPacketNumber).To(Equal(protocol.PacketNumber(5)))
 		})
 
 		It("informs the ReceivedPacketHandler", func() {
@@ -636,18 +635,16 @@ var _ = Describe("Session", func() {
 			Eventually(done).Should(BeClosed())
 		})
 
-		It("sets the {last,largest}RcvdPacketNumber, for an out-of-order packet", func() {
+		It("sets the lastRcvdPacketNumber, for an out-of-order packet", func() {
 			unpacker.EXPECT().Unpack(gomock.Any(), gomock.Any(), gomock.Any()).Return(&unpackedPacket{}, nil).Times(2)
 			hdr.PacketNumber = 5
 			err := sess.handlePacketImpl(&receivedPacket{header: hdr})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(sess.lastRcvdPacketNumber).To(Equal(protocol.PacketNumber(5)))
-			Expect(sess.largestRcvdPacketNumber).To(Equal(protocol.PacketNumber(5)))
 			hdr.PacketNumber = 3
 			err = sess.handlePacketImpl(&receivedPacket{header: hdr})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(sess.lastRcvdPacketNumber).To(Equal(protocol.PacketNumber(3)))
-			Expect(sess.largestRcvdPacketNumber).To(Equal(protocol.PacketNumber(5)))
 		})
 
 		It("handles duplicate packets", func() {
