@@ -127,12 +127,11 @@ func (m *clientMultiplexer) handlePacket(addr net.Addr, data []byte, p *connMana
 		return fmt.Errorf("error parsing header: %s", err)
 	}
 	hdr.Raw = data[:len(data)-r.Len()]
-	packetData := data[len(data)-r.Len():]
 
 	client.handlePacket(&receivedPacket{
 		remoteAddr: addr,
 		header:     hdr,
-		data:       packetData,
+		data:       data,
 		rcvTime:    rcvTime,
 	})
 	return nil

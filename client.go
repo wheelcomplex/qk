@@ -378,24 +378,25 @@ func (c *client) handlePacketImpl(p *receivedPacket) error {
 }
 
 func (c *client) handleIETFQUICPacket(p *receivedPacket) error {
+	hdr := p.header
 	// reject packets with the wrong connection ID
-	if !p.header.DestConnectionID.Equal(c.srcConnID) {
-		return fmt.Errorf("received a packet with an unexpected connection ID (%s, expected %s)", p.header.DestConnectionID, c.srcConnID)
+	if !hdr.DestConnectionID.Equal(c.srcConnID) {
+		return fmt.Errorf("received a packet with an unexpected connection ID (%s, expected %s)", hdr.DestConnectionID, c.srcConnID)
 	}
-	if p.header.IsLongHeader {
-		switch p.header.Type {
+	if hdr.IsLongHeader {
+		switch hdr.Type {
 		case protocol.PacketTypeRetry:
 			if c.receivedRetry {
 				return nil
 			}
 		case protocol.PacketTypeHandshake:
 		default:
-			return fmt.Errorf("Received unsupported packet type: %s", p.header.Type)
+			return fmt.Errorf("Received unsupported packet type: %s", hdr.Type)
 		}
-		if protocol.ByteCount(len(p.data)) < p.header.PayloadLen {
-			return fmt.Errorf("packet payload (%d bytes) is smaller than the expected payload length (%d bytes)", len(p.data), p.header.PayloadLen)
+		if protocol.ByteCount(len(p.data)) < hdr.PayloadLen {
+			return fmt.Errorf("packet payload (%d bytes) is smaller than the expected payload length (%d bytes)", len(p.data), hdr.PayloadLen)
 		}
-		p.data = p.data[:int(p.header.PayloadLen)]
+		p.data = p.data[:len(hdr.Raw)+int(hdr.PayloadLen)]
 		// TODO(#1312): implement parsing of compound packets
 	}
 

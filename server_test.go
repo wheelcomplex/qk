@@ -335,14 +335,6 @@ var _ = Describe("Server", func() {
 		})
 
 		It("cuts packets at the payload length", func() {
-			sess := NewMockQuicSession(mockCtrl)
-			sess.EXPECT().handlePacket(gomock.Any()).Do(func(packet *receivedPacket) {
-				Expect(packet.data).To(HaveLen(123))
-			})
-			sess.EXPECT().GetVersion().Return(protocol.VersionTLS)
-			sessionHandler.EXPECT().Get(connID).Return(sess, true)
-
-			serv.supportsTLS = true
 			b := &bytes.Buffer{}
 			hdr := &wire.Header{
 				IsLongHeader:     true,
@@ -354,6 +346,15 @@ var _ = Describe("Server", func() {
 				Version:          versionIETFFrames,
 			}
 			Expect(hdr.Write(b, protocol.PerspectiveClient, versionIETFFrames)).To(Succeed())
+			hdr.Raw = b.Bytes()
+			sess := NewMockQuicSession(mockCtrl)
+			sess.EXPECT().GetVersion().Return(versionIETFFrames)
+			sess.EXPECT().handlePacket(gomock.Any()).Do(func(packet *receivedPacket) {
+				Expect(packet.data).To(HaveLen(123 + b.Len()))
+			})
+
+			serv.supportsTLS = true
+			sessionHandler.EXPECT().Get(connID).Return(sess, true)
 			err := serv.handlePacket(nil, append(b.Bytes(), make([]byte, 456)...))
 			Expect(err).ToNot(HaveOccurred())
 		})

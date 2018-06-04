@@ -68,7 +68,7 @@ var _ = Describe("Stateless TLS handling", func() {
 		buf.Write(bytes.Repeat([]byte{0}, protocol.MinInitialPacketSize-len(hdr.Raw)-aead.Overhead()-buf.Len()))
 		data := aead.Seal(nil, buf.Bytes(), 1, hdr.Raw)
 		Expect(len(hdr.Raw) + len(data)).To(Equal(protocol.MinInitialPacketSize))
-		return hdr, data
+		return hdr, append(hdr.Raw, data...)
 	}
 
 	unpackPacket := func(data []byte, clientDestConnID protocol.ConnectionID) (*wire.Header, []byte) {
