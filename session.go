@@ -624,7 +624,7 @@ func (s *session) handlePacketImpl(p *receivedPacket) error {
 		p.rcvTime = time.Now()
 	}
 
-	packet, err := s.unpacker.Unpack(hdr, p.data[len(hdr.Raw):])
+	packet, err := s.unpacker.Unpack(hdr, p.data)
 	if s.logger.Debug() {
 		if err != nil {
 			s.logger.Debugf("<- Reading packet 0x%x (%d bytes) for connection %s", hdr.PacketNumber, len(p.data), hdr.DestConnectionID)

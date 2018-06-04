@@ -71,7 +71,7 @@ func newPacketUnpackerGQUIC(aead gQUICAEAD, version protocol.VersionNumber) unpa
 
 func (u *packetUnpackerGQUIC) Unpack(hdr *wire.Header, data []byte) (*unpackedPacket, error) {
 	hdr.PacketNumber = u.inferPacketNumber(hdr.PacketNumberLen, hdr.PacketNumber)
-	decrypted, encryptionLevel, err := u.aead.Open(data[:0], data, hdr.PacketNumber, hdr.Raw)
+	decrypted, encryptionLevel, err := u.aead.Open(data[len(hdr.Raw):len(hdr.Raw)], data[len(hdr.Raw):], hdr.PacketNumber, hdr.Raw)
 	if err != nil {
 		// Wrap err in quicError so that public reset is sent by session
 		return nil, qerr.Error(qerr.DecryptionFailure, err.Error())
@@ -115,10 +115,10 @@ func (u *packetUnpacker) Unpack(hdr *wire.Header, data []byte) (*unpackedPacket,
 	var encryptionLevel protocol.EncryptionLevel
 	var err error
 	if hdr.IsLongHeader {
-		decrypted, err = u.aead.OpenHandshake(buf, data, hdr.PacketNumber, hdr.Raw)
+		decrypted, err = u.aead.OpenHandshake(buf, data[len(hdr.Raw):], hdr.PacketNumber, hdr.Raw)
 		encryptionLevel = protocol.EncryptionUnencrypted
 	} else {
-		decrypted, err = u.aead.Open1RTT(buf, data, hdr.PacketNumber, hdr.Raw)
+		decrypted, err = u.aead.Open1RTT(buf, data[len(hdr.Raw):], hdr.PacketNumber, hdr.Raw)
 		encryptionLevel = protocol.EncryptionForwardSecure
 	}
 	if err != nil {

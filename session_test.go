@@ -590,7 +590,7 @@ var _ = Describe("Session", func() {
 			hdr.PacketNumber = 5
 			hdr.Raw = []byte("raw header")
 			data := append(hdr.Raw, []byte("foobar")...)
-			unpacker.EXPECT().Unpack(hdr, []byte("foobar")).Return(&unpackedPacket{}, nil)
+			unpacker.EXPECT().Unpack(hdr, data).Return(&unpackedPacket{}, nil)
 			err := sess.handlePacketImpl(&receivedPacket{header: hdr, data: data})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(sess.lastRcvdPacketNumber).To(Equal(protocol.PacketNumber(5)))
