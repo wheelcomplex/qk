@@ -22,7 +22,7 @@ import (
 )
 
 type unpacker interface {
-	Unpack(headerBinary []byte, hdr *wire.Header, data []byte) (*unpackedPacket, error)
+	Unpack(hdr *wire.Header, data []byte) (*unpackedPacket, error)
 }
 
 type streamGetter interface {
@@ -613,12 +613,12 @@ func (s *session) handlePacketImpl(p *receivedPacket) error {
 	hdr := p.header
 	data := p.data
 
-	packet, err := s.unpacker.Unpack(hdr.Raw, hdr, data)
+	packet, err := s.unpacker.Unpack(hdr, data[len(hdr.Raw):])
 	if s.logger.Debug() {
 		if err != nil {
-			s.logger.Debugf("<- Reading packet 0x%x (%d bytes) for connection %s", hdr.PacketNumber, len(data)+len(hdr.Raw), hdr.DestConnectionID)
+			s.logger.Debugf("<- Reading packet 0x%x (%d bytes) for connection %s", hdr.PacketNumber, len(data), hdr.DestConnectionID)
 		} else {
-			s.logger.Debugf("<- Reading packet 0x%x (%d bytes) for connection %s, %s", hdr.PacketNumber, len(data)+len(hdr.Raw), hdr.DestConnectionID, packet.encryptionLevel)
+			s.logger.Debugf("<- Reading packet 0x%x (%d bytes) for connection %s, %s", hdr.PacketNumber, len(data), hdr.DestConnectionID, packet.encryptionLevel)
 		}
 		hdr.Log(s.logger)
 	}

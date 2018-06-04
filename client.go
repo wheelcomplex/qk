@@ -305,7 +305,6 @@ func (c *client) handlePacket(remoteAddr net.Addr, packet []byte) error {
 		return errors.New("received packet with truncated connection ID, but didn't request truncation")
 	}
 	hdr.Raw = packet[:len(packet)-r.Len()]
-	packetData := packet[len(packet)-r.Len():]
 
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -325,12 +324,12 @@ func (c *client) handlePacket(remoteAddr net.Addr, packet []byte) error {
 	}
 
 	if hdr.IsPublicHeader {
-		return c.handleGQUICPacket(hdr, r, packetData, remoteAddr, rcvTime)
+		return c.handleGQUICPacket(hdr, r, packet, remoteAddr, rcvTime)
 	}
-	return c.handleIETFQUICPacket(hdr, packetData, remoteAddr, rcvTime)
+	return c.handleIETFQUICPacket(hdr, packet, remoteAddr, rcvTime)
 }
 
-func (c *client) handleIETFQUICPacket(hdr *wire.Header, packetData []byte, remoteAddr net.Addr, rcvTime time.Time) error {
+func (c *client) handleIETFQUICPacket(hdr *wire.Header, packet []byte, remoteAddr net.Addr, rcvTime time.Time) error {
 	// reject packets with the wrong connection ID
 	if !hdr.DestConnectionID.Equal(c.srcConnID) {
 		return fmt.Errorf("received a packet with an unexpected connection ID (%s, expected %s)", hdr.DestConnectionID, c.srcConnID)
@@ -339,11 +338,10 @@ func (c *client) handleIETFQUICPacket(hdr *wire.Header, packetData []byte, remot
 		if hdr.Type != protocol.PacketTypeRetry && hdr.Type != protocol.PacketTypeHandshake {
 			return fmt.Errorf("Received unsupported packet type: %s", hdr.Type)
 		}
-		c.logger.Debugf("len(packet data): %d, payloadLen: %d", len(packetData), hdr.PayloadLen)
-		if protocol.ByteCount(len(packetData)) < hdr.PayloadLen {
-			return fmt.Errorf("packet payload (%d bytes) is smaller than the expected payload length (%d bytes)", len(packetData), hdr.PayloadLen)
+		if protocol.ByteCount(len(packet)-len(hdr.Raw)) < hdr.PayloadLen {
+			return fmt.Errorf("packet payload (%d bytes) is smaller than the expected payload length (%d bytes)", len(packet)-len(hdr.Raw), hdr.PayloadLen)
 		}
-		packetData = packetData[:int(hdr.PayloadLen)]
+		packet = packet[:len(hdr.Raw)+int(hdr.PayloadLen)]
 		// TODO(#1312): implement parsing of compound packets
 	}
 
@@ -356,13 +354,13 @@ func (c *client) handleIETFQUICPacket(hdr *wire.Header, packetData []byte, remot
 	c.session.handlePacket(&receivedPacket{
 		remoteAddr: remoteAddr,
 		header:     hdr,
-		data:       packetData,
+		data:       packet,
 		rcvTime:    rcvTime,
 	})
 	return nil
 }
 
-func (c *client) handleGQUICPacket(hdr *wire.Header, r *bytes.Reader, packetData []byte, remoteAddr net.Addr, rcvTime time.Time) error {
+func (c *client) handleGQUICPacket(hdr *wire.Header, r *bytes.Reader, packet []byte, remoteAddr net.Addr, rcvTime time.Time) error {
 	// reject packets with the wrong connection ID
 	if !hdr.OmitConnectionID && !hdr.DestConnectionID.Equal(c.srcConnID) {
 		return fmt.Errorf("received a packet with an unexpected connection ID (%s, expected %s)", hdr.DestConnectionID, c.srcConnID)
@@ -393,7 +391,7 @@ func (c *client) handleGQUICPacket(hdr *wire.Header, r *bytes.Reader, packetData
 	c.session.handlePacket(&receivedPacket{
 		remoteAddr: remoteAddr,
 		header:     hdr,
-		data:       packetData,
+		data:       packet,
 		rcvTime:    rcvTime,
 	})
 	return nil

@@ -519,11 +519,6 @@ var _ = Describe("Client", func() {
 	})
 
 	It("cuts packets at the payload length", func() {
-		sess := NewMockPacketHandler(mockCtrl)
-		sess.EXPECT().handlePacket(gomock.Any()).Do(func(packet *receivedPacket) {
-			Expect(packet.data).To(HaveLen(123))
-		})
-		cl.session = sess
 		b := &bytes.Buffer{}
 		hdr := &wire.Header{
 			IsLongHeader:     true,
@@ -535,6 +530,11 @@ var _ = Describe("Client", func() {
 			Version:          versionIETFFrames,
 		}
 		Expect(hdr.Write(b, protocol.PerspectiveClient, versionIETFFrames)).To(Succeed())
+		sess := NewMockPacketHandler(mockCtrl)
+		sess.EXPECT().handlePacket(gomock.Any()).Do(func(packet *receivedPacket) {
+			Expect(packet.data).To(HaveLen(123 + b.Len()))
+		})
+		cl.session = sess
 		err := cl.handlePacket(addr, append(b.Bytes(), make([]byte, 456)...))
 		Expect(err).ToNot(HaveOccurred())
 	})
