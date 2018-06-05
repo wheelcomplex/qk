@@ -12,7 +12,6 @@ import (
 )
 
 var (
-	errResetAndVersionFlagSet            = errors.New("PublicHeader: Reset Flag and Version Flag should not be set at the same time")
 	errReceivedOmittedConnectionID       = qerr.Error(qerr.InvalidPacketHeader, "receiving packets with omitted ConnectionID is not supported")
 	errInvalidConnectionID               = qerr.Error(qerr.InvalidPacketHeader, "connection ID cannot be 0")
 	errGetLengthNotForVersionNegotiation = errors.New("PublicHeader: GetLength cannot be called for VersionNegotiation packets")
@@ -24,8 +23,8 @@ func (h *Header) writePublicHeader(b *bytes.Buffer, pers protocol.Perspective, _
 	if h.VersionFlag && pers == protocol.PerspectiveServer {
 		return errors.New("PublicHeader: Writing of Version Negotiation Packets not supported")
 	}
-	if h.VersionFlag && h.ResetFlag {
-		return errResetAndVersionFlagSet
+	if h.ResetFlag {
+		return errors.New("PublicHeader: Writing of Public Reset Packets not supported")
 	}
 	if !h.DestConnectionID.Equal(h.SrcConnectionID) {
 		return fmt.Errorf("PublicHeader: SrcConnectionID must be equal to DestConnectionID")
@@ -37,9 +36,6 @@ func (h *Header) writePublicHeader(b *bytes.Buffer, pers protocol.Perspective, _
 	publicFlagByte := uint8(0x00)
 	if h.VersionFlag {
 		publicFlagByte |= 0x01
-	}
-	if h.ResetFlag {
-		publicFlagByte |= 0x02
 	}
 	if !h.OmitConnectionID {
 		publicFlagByte |= 0x08
@@ -203,7 +199,7 @@ func parsePublicHeader(b *bytes.Reader, packetSentBy protocol.Perspective) (*Hea
 // It can only be called for regular packets.
 func (h *Header) getPublicHeaderLength(pers protocol.Perspective) (protocol.ByteCount, error) {
 	if h.VersionFlag && h.ResetFlag {
-		return 0, errResetAndVersionFlagSet
+		return 0, errors.New("PublicHeader: Reset Flag and Version Flag should not be set at the same time")
 	}
 	if h.VersionFlag && pers == protocol.PerspectiveServer {
 		return 0, errGetLengthNotForVersionNegotiation
