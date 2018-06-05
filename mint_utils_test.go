@@ -158,7 +158,7 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 			Expect(err).ToNot(HaveOccurred())
 			decrypted, err := aeadCl.Open(nil, data[len(hdr.Raw):], hdr.PacketNumber, hdr.Raw)
 			Expect(err).ToNot(HaveOccurred())
-			frame, err := wire.ParseNextFrame(bytes.NewReader(decrypted), hdr, versionIETFFrames)
+			frame, err := wire.ParseNextFrame(bytes.NewReader(decrypted), hdr.PacketNumber, hdr.PacketNumberLen, versionIETFFrames)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(frame).To(Equal(f))
 		})

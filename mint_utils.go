@@ -116,7 +116,7 @@ func unpackInitialPacket(aead crypto.AEAD, hdr *wire.Header, data []byte, logger
 	var frame *wire.StreamFrame
 	r := bytes.NewReader(decrypted)
 	for {
-		f, err := wire.ParseNextFrame(r, hdr, version)
+		f, err := wire.ParseNextFrame(r, hdr.PacketNumber, hdr.PacketNumberLen, version)
 		if err != nil {
 			return nil, err
 		}

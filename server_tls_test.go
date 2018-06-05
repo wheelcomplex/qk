@@ -191,7 +191,7 @@ var _ = Describe("Stateless TLS handling", func() {
 		Expect(replyHdr.Type).To(Equal(protocol.PacketTypeHandshake))
 		Expect(replyHdr.SrcConnectionID).To(Equal(hdr.DestConnectionID))
 		Expect(replyHdr.DestConnectionID).To(Equal(hdr.SrcConnectionID))
-		frame, err := wire.ParseNextFrame(bytes.NewReader(data), nil, protocol.VersionTLS)
+		frame, err := wire.ParseNextFrame(bytes.NewReader(data), 1, protocol.PacketNumberLen1, protocol.VersionTLS)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(frame).To(BeAssignableToTypeOf(&wire.ConnectionCloseFrame{}))
 		ccf := frame.(*wire.ConnectionCloseFrame)
