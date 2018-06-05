@@ -38,7 +38,7 @@ func (u *packetUnpackerBase) parseFrames(decrypted []byte, hdr *wire.Header) ([]
 	fs := make([]wire.Frame, 0, 2)
 	// Read all frames in the packet
 	for {
-		frame, err := wire.ParseNextFrame(r, hdr, u.version)
+		frame, err := wire.ParseNextFrame(r, hdr.PacketNumber, hdr.PacketNumberLen, u.version)
 		if err != nil {
 			return nil, err
 		}

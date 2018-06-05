@@ -10,7 +10,7 @@ import (
 
 // ParseNextFrame parses the next frame
 // It skips PADDING frames.
-func ParseNextFrame(r *bytes.Reader, hdr *Header, v protocol.VersionNumber) (Frame, error) {
+func ParseNextFrame(r *bytes.Reader, pn protocol.PacketNumber, pnLen protocol.PacketNumberLen, v protocol.VersionNumber) (Frame, error) {
 	for r.Len() != 0 {
 		typeByte, _ := r.ReadByte()
 		if typeByte == 0x0 { // PADDING frame
@@ -19,7 +19,7 @@ func ParseNextFrame(r *bytes.Reader, hdr *Header, v protocol.VersionNumber) (Fra
 		r.UnreadByte()
 
 		if !v.UsesIETFFrameFormat() {
-			return parseGQUICFrame(r, typeByte, hdr, v)
+			return parseGQUICFrame(r, typeByte, pn, pnLen, v)
 		}
 		return parseIETFFrame(r, typeByte, v)
 	}
@@ -106,7 +106,7 @@ func parseIETFFrame(r *bytes.Reader, typeByte byte, v protocol.VersionNumber) (F
 	return frame, err
 }
 
-func parseGQUICFrame(r *bytes.Reader, typeByte byte, hdr *Header, v protocol.VersionNumber) (Frame, error) {
+func parseGQUICFrame(r *bytes.Reader, typeByte byte, pn protocol.PacketNumber, pnLen protocol.PacketNumberLen, v protocol.VersionNumber) (Frame, error) {
 	var frame Frame
 	var err error
 	if typeByte&0x80 == 0x80 {
@@ -149,7 +149,7 @@ func parseGQUICFrame(r *bytes.Reader, typeByte byte, hdr *Header, v protocol.Ver
 			err = qerr.Error(qerr.InvalidBlockedData, err.Error())
 		}
 	case 0x6:
-		frame, err = parseStopWaitingFrame(r, hdr.PacketNumber, hdr.PacketNumberLen, v)
+		frame, err = parseStopWaitingFrame(r, pn, pnLen, v)
 		if err != nil {
 			err = qerr.Error(qerr.InvalidStopWaitingData, err.Error())
 		}
