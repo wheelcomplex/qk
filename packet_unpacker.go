@@ -10,6 +10,7 @@ import (
 )
 
 type unpackedPacket struct {
+	packetNumber    protocol.PacketNumber
 	encryptionLevel protocol.EncryptionLevel
 	frames          []wire.Frame
 }
@@ -29,7 +30,7 @@ type packetUnpackerBase struct {
 	version protocol.VersionNumber
 }
 
-func (u *packetUnpackerBase) parseFrames(decrypted []byte, hdr *wire.Header) ([]wire.Frame, error) {
+func (u *packetUnpackerBase) parseFrames(decrypted []byte, pn protocol.PacketNumber, pnLen protocol.PacketNumberLen) ([]wire.Frame, error) {
 	r := bytes.NewReader(decrypted)
 	if r.Len() == 0 {
 		return nil, qerr.MissingPayload
@@ -38,7 +39,7 @@ func (u *packetUnpackerBase) parseFrames(decrypted []byte, hdr *wire.Header) ([]
 	fs := make([]wire.Frame, 0, 2)
 	// Read all frames in the packet
 	for {
-		frame, err := wire.ParseNextFrame(r, hdr.PacketNumber, hdr.PacketNumberLen, u.version)
+		frame, err := wire.ParseNextFrame(r, pn, pnLen, u.version)
 		if err != nil {
 			return nil, err
 		}
@@ -70,21 +71,27 @@ func newPacketUnpackerGQUIC(aead gQUICAEAD, version protocol.VersionNumber) unpa
 }
 
 func (u *packetUnpackerGQUIC) Unpack(hdr *wire.Header, data []byte) (*unpackedPacket, error) {
-	hdr.PacketNumber = u.inferPacketNumber(hdr.PacketNumberLen, hdr.PacketNumber)
-	decrypted, encryptionLevel, err := u.aead.Open(data[len(hdr.Raw):len(hdr.Raw)], data[len(hdr.Raw):], hdr.PacketNumber, hdr.Raw)
+	pn, pnLen, err := wire.ReadPacketNumber(bytes.NewReader(data[len(hdr.Raw):]), hdr.Raw[0], u.version)
+	if err != nil {
+		return nil, err
+	}
+	pn = u.inferPacketNumber(pnLen, pn)
+	payloadOffset := len(hdr.Raw) + int(pnLen)
+	decrypted, encLevel, err := u.aead.Open(data[payloadOffset:payloadOffset], data[payloadOffset:], pn, data[:payloadOffset])
 	if err != nil {
 		// Wrap err in quicError so that public reset is sent by session
 		return nil, qerr.Error(qerr.DecryptionFailure, err.Error())
 	}
 
-	u.largestRcvdPacketNumber = utils.MaxPacketNumber(u.largestRcvdPacketNumber, hdr.PacketNumber)
-	fs, err := u.parseFrames(decrypted, hdr)
+	u.largestRcvdPacketNumber = utils.MaxPacketNumber(u.largestRcvdPacketNumber, pn)
+	fs, err := u.parseFrames(decrypted, pn, pnLen)
 	if err != nil {
 		return nil, err
 	}
 
 	return &unpackedPacket{
-		encryptionLevel: encryptionLevel,
+		packetNumber:    pn,
+		encryptionLevel: encLevel,
 		frames:          fs,
 	}, nil
 }
@@ -105,7 +112,12 @@ func newPacketUnpacker(aead quicAEAD, version protocol.VersionNumber) unpacker {
 }
 
 func (u *packetUnpacker) Unpack(hdr *wire.Header, data []byte) (*unpackedPacket, error) {
-	hdr.PacketNumber = u.inferPacketNumber(hdr.PacketNumberLen, hdr.PacketNumber)
+	pn, pnLen, err := wire.ReadPacketNumber(bytes.NewReader(data[len(hdr.Raw):]), hdr.Raw[0], u.version)
+	if err != nil {
+		return nil, err
+	}
+	pn = u.inferPacketNumber(pnLen, pn)
+	payloadOffset := len(hdr.Raw) + int(pnLen)
 
 	buf := *getPacketBuffer()
 	buf = buf[:0]
@@ -113,12 +125,11 @@ func (u *packetUnpacker) Unpack(hdr *wire.Header, data []byte) (*unpackedPacket,
 
 	var decrypted []byte
 	var encryptionLevel protocol.EncryptionLevel
-	var err error
 	if hdr.IsLongHeader {
-		decrypted, err = u.aead.OpenHandshake(buf, data[len(hdr.Raw):], hdr.PacketNumber, hdr.Raw)
+		decrypted, err = u.aead.OpenHandshake(buf, data[payloadOffset:], pn, data[:payloadOffset])
 		encryptionLevel = protocol.EncryptionUnencrypted
 	} else {
-		decrypted, err = u.aead.Open1RTT(buf, data[len(hdr.Raw):], hdr.PacketNumber, hdr.Raw)
+		decrypted, err = u.aead.Open1RTT(buf, data[payloadOffset:], pn, data[:payloadOffset])
 		encryptionLevel = protocol.EncryptionForwardSecure
 	}
 	if err != nil {
@@ -126,13 +137,14 @@ func (u *packetUnpacker) Unpack(hdr *wire.Header, data []byte) (*unpackedPacket,
 		return nil, qerr.Error(qerr.DecryptionFailure, err.Error())
 	}
 
-	u.largestRcvdPacketNumber = utils.MaxPacketNumber(u.largestRcvdPacketNumber, hdr.PacketNumber)
-	fs, err := u.parseFrames(decrypted, hdr)
+	u.largestRcvdPacketNumber = utils.MaxPacketNumber(u.largestRcvdPacketNumber, pn)
+	fs, err := u.parseFrames(decrypted, pn, pnLen)
 	if err != nil {
 		return nil, err
 	}
 
 	return &unpackedPacket{
+		packetNumber:    pn,
 		encryptionLevel: encryptionLevel,
 		frames:          fs,
 	}, nil

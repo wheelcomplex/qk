@@ -22,8 +22,6 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 	hdr := &wire.Header{
 		IsLongHeader:     true,
 		Type:             protocol.PacketTypeRetry,
-		PacketNumber:     0x42,
-		PacketNumberLen:  protocol.PacketNumberLen1,
 		DestConnectionID: connID,
 		SrcConnectionID:  connID,
 		Version:          ver,
@@ -35,7 +33,7 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 		Expect(err).ToNot(HaveOccurred())
 		// set hdr.Raw
 		buf := &bytes.Buffer{}
-		err = hdr.Write(buf, protocol.PerspectiveClient, ver)
+		err = hdr.Write(buf, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer, ver)
 		Expect(err).ToNot(HaveOccurred())
 		hdr.Raw = buf.Bytes()
 	})
@@ -92,9 +90,11 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 	})
 
 	Context("unpacking", func() {
-		packPacket := func(frames []wire.Frame) []byte {
+		packPacket := func(frames []wire.Frame, pn protocol.PacketNumber) []byte {
 			buf := &bytes.Buffer{}
-			buf.Write(hdr.Raw)
+			err := hdr.Write(buf, pn, protocol.PacketNumberLen2, protocol.PerspectiveClient, ver)
+			Expect(err).ToNot(HaveOccurred())
+			hdrLen := buf.Len()
 			payloadStartIndex := buf.Len()
 			aeadCl, err := crypto.NewNullAEAD(protocol.PerspectiveClient, connID, ver)
 			Expect(err).ToNot(HaveOccurred())
@@ -102,9 +102,10 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 				err := f.Write(buf, ver)
 				Expect(err).ToNot(HaveOccurred())
 			}
+			Expect(err).ToNot(HaveOccurred())
 			raw := buf.Bytes()
-			data := aeadCl.Seal(raw[payloadStartIndex:payloadStartIndex], raw[payloadStartIndex:], hdr.PacketNumber, raw[:payloadStartIndex])
-			return append(raw[:len(hdr.Raw)], data...)
+			data := aeadCl.Seal(raw[payloadStartIndex:payloadStartIndex], raw[payloadStartIndex:], pn, raw[:payloadStartIndex])
+			return append(raw[:hdrLen], data...)
 		}
 
 		It("unpacks a packet", func() {
@@ -112,15 +113,16 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 				StreamID: 0,
 				Data:     []byte("foobar"),
 			}
-			p := packPacket([]wire.Frame{f})
-			frame, err := unpackInitialPacket(aead, hdr, p, utils.DefaultLogger, ver)
+			p := packPacket([]wire.Frame{f}, 0x42)
+			pn, frame, err := unpackInitialPacket(aead, hdr, p, utils.DefaultLogger, ver)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(pn).To(Equal(protocol.PacketNumber(0x42)))
 			Expect(frame).To(Equal(f))
 		})
 
 		It("rejects a packet that doesn't contain a STREAM_FRAME", func() {
-			p := packPacket([]wire.Frame{&wire.PingFrame{}})
-			_, err := unpackInitialPacket(aead, hdr, p, utils.DefaultLogger, ver)
+			p := packPacket([]wire.Frame{&wire.PingFrame{}}, 1)
+			_, _, err := unpackInitialPacket(aead, hdr, p, utils.DefaultLogger, ver)
 			Expect(err).To(MatchError("Packet doesn't contain a STREAM_FRAME"))
 		})
 
@@ -129,8 +131,8 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 				StreamID: 42,
 				Data:     []byte("foobar"),
 			}
-			p := packPacket([]wire.Frame{f})
-			_, err := unpackInitialPacket(aead, hdr, p, utils.DefaultLogger, ver)
+			p := packPacket([]wire.Frame{f}, 1)
+			_, _, err := unpackInitialPacket(aead, hdr, p, utils.DefaultLogger, ver)
 			Expect(err).To(MatchError("Received STREAM_FRAME for wrong stream (Stream ID 42)"))
 		})
 
@@ -140,25 +142,37 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 				Offset:   10,
 				Data:     []byte("foobar"),
 			}
-			p := packPacket([]wire.Frame{f})
-			_, err := unpackInitialPacket(aead, hdr, p, utils.DefaultLogger, ver)
+			p := packPacket([]wire.Frame{f}, 1)
+			_, _, err := unpackInitialPacket(aead, hdr, p, utils.DefaultLogger, ver)
 			Expect(err).To(MatchError("received stream data with non-zero offset"))
 		})
 	})
 
 	Context("packing", func() {
 		It("packs a packet", func() {
+			hdr := &wire.Header{
+				IsLongHeader:     true,
+				Type:             protocol.PacketTypeRetry,
+				DestConnectionID: connID,
+				SrcConnectionID:  connID,
+				Version:          ver,
+			}
+			buf := &bytes.Buffer{}
+			pn := protocol.PacketNumber(1337)
+			err := hdr.Write(buf, pn, protocol.PacketNumberLen2, protocol.PerspectiveServer, ver)
+			Expect(err).ToNot(HaveOccurred())
+			hdr.Raw = buf.Bytes()
 			f := &wire.StreamFrame{
 				Data:   []byte("foobar"),
 				FinBit: true,
 			}
-			data, err := packUnencryptedPacket(aead, hdr, f, protocol.PerspectiveServer, utils.DefaultLogger)
+			data, err := packUnencryptedPacket(aead, hdr, pn, f, protocol.PerspectiveServer, utils.DefaultLogger)
 			Expect(err).ToNot(HaveOccurred())
 			aeadCl, err := crypto.NewNullAEAD(protocol.PerspectiveClient, connID, ver)
 			Expect(err).ToNot(HaveOccurred())
-			decrypted, err := aeadCl.Open(nil, data[len(hdr.Raw):], hdr.PacketNumber, hdr.Raw)
+			decrypted, err := aeadCl.Open(nil, data[len(hdr.Raw):], pn, hdr.Raw)
 			Expect(err).ToNot(HaveOccurred())
-			frame, err := wire.ParseNextFrame(bytes.NewReader(decrypted), hdr.PacketNumber, hdr.PacketNumberLen, versionIETFFrames)
+			frame, err := wire.ParseNextFrame(bytes.NewReader(decrypted), pn, protocol.PacketNumberLen4, versionIETFFrames)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(frame).To(Equal(f))
 		})

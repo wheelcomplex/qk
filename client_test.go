@@ -33,16 +33,14 @@ var _ = Describe("Client", func() {
 	// generate a packet sent by the server that accepts the QUIC version suggested by the client
 	acceptClientVersionPacket := func(connID protocol.ConnectionID) []byte {
 		b := &bytes.Buffer{}
-		err := (&wire.Header{
+		hdr := &wire.Header{
 			DestConnectionID: connID,
 			SrcConnectionID:  connID,
-			PacketNumber:     1,
-			PacketNumberLen:  1,
-		}).Write(b, protocol.PerspectiveServer, protocol.VersionWhatever)
+		}
+		err := hdr.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer, protocol.VersionWhatever)
 		Expect(err).ToNot(HaveOccurred())
 		return b.Bytes()
 	}
-	_ = acceptClientVersionPacket
 
 	BeforeEach(func() {
 		connID = protocol.ConnectionID{0, 0, 0, 0, 0, 0, 0x13, 0x37}
@@ -353,13 +351,11 @@ var _ = Describe("Client", func() {
 				sess.EXPECT().handlePacket(gomock.Any())
 				cl.session = sess
 				ph := wire.Header{
-					PacketNumber:     1,
-					PacketNumberLen:  protocol.PacketNumberLen2,
 					DestConnectionID: connID,
 					SrcConnectionID:  connID,
 				}
 				b := &bytes.Buffer{}
-				err := ph.Write(b, protocol.PerspectiveServer, protocol.VersionWhatever)
+				err := ph.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer, protocol.VersionWhatever)
 				Expect(err).ToNot(HaveOccurred())
 				err = cl.handlePacket(nil, b.Bytes())
 				Expect(err).ToNot(HaveOccurred())
@@ -502,40 +498,38 @@ var _ = Describe("Client", func() {
 		Expect(err.Error()).To(ContainSubstring("error parsing packet from"))
 	})
 
-	It("errors on packets that are smaller than the Payload Length in the packet header", func() {
+	It("errors on packets that are smaller than the Length in the packet header", func() {
 		cl.session = NewMockPacketHandler(mockCtrl) // don't EXPECT any handlePacket calls
 		b := &bytes.Buffer{}
 		hdr := &wire.Header{
 			IsLongHeader:     true,
 			Type:             protocol.PacketTypeHandshake,
-			PayloadLen:       1000,
+			Length:           1000,
 			SrcConnectionID:  protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 			DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
-			PacketNumberLen:  protocol.PacketNumberLen1,
 			Version:          versionIETFFrames,
 		}
-		Expect(hdr.Write(b, protocol.PerspectiveClient, versionIETFFrames)).To(Succeed())
+		Expect(hdr.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveClient, versionIETFFrames)).To(Succeed())
 		cl.handlePacket(addr, append(b.Bytes(), make([]byte, 456)...))
 	})
 
-	It("cuts packets at the payload length", func() {
+	It("cuts packets at the length", func() {
 		b := &bytes.Buffer{}
-		hdr := &wire.Header{
+		err := (&wire.Header{
 			IsLongHeader:     true,
 			Type:             protocol.PacketTypeHandshake,
-			PayloadLen:       123,
+			Length:           123,
 			SrcConnectionID:  connID,
 			DestConnectionID: connID,
-			PacketNumberLen:  protocol.PacketNumberLen1,
 			Version:          versionIETFFrames,
-		}
-		Expect(hdr.Write(b, protocol.PerspectiveClient, versionIETFFrames)).To(Succeed())
+		}).Write(b, 1, protocol.PacketNumberLen4, protocol.PerspectiveClient, versionIETFFrames)
+		Expect(err).ToNot(HaveOccurred())
 		sess := NewMockPacketHandler(mockCtrl)
 		sess.EXPECT().handlePacket(gomock.Any()).Do(func(packet *receivedPacket) {
-			Expect(packet.data).To(HaveLen(123 + b.Len()))
+			Expect(packet.data).To(HaveLen(b.Len() - 4 /* packet number len */ + 123))
 		})
 		cl.session = sess
-		err := cl.handlePacket(addr, append(b.Bytes(), make([]byte, 456)...))
+		err = cl.handlePacket(addr, append(b.Bytes(), make([]byte, 456)...))
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -544,13 +538,12 @@ var _ = Describe("Client", func() {
 		hdr := &wire.Header{
 			IsLongHeader:     true,
 			Type:             protocol.PacketTypeInitial,
-			PayloadLen:       123,
+			Length:           123,
 			SrcConnectionID:  connID,
 			DestConnectionID: connID,
-			PacketNumberLen:  protocol.PacketNumberLen1,
 			Version:          versionIETFFrames,
 		}
-		Expect(hdr.Write(b, protocol.PerspectiveServer, versionIETFFrames)).To(Succeed())
+		Expect(hdr.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer, versionIETFFrames)).To(Succeed())
 		err := cl.handlePacket(addr, append(b.Bytes(), make([]byte, 456)...))
 		Expect(err).To(MatchError("Received unsupported packet type: Initial"))
 	})
@@ -563,9 +556,7 @@ var _ = Describe("Client", func() {
 			OmitConnectionID: true,
 			SrcConnectionID:  connID,
 			DestConnectionID: connID,
-			PacketNumber:     1,
-			PacketNumberLen:  protocol.PacketNumberLen1,
-		}).Write(buf, protocol.PerspectiveServer, versionGQUICFrames)
+		}).Write(buf, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer, versionGQUICFrames)
 		Expect(err).ToNot(HaveOccurred())
 		err = cl.handlePacket(addr, buf.Bytes())
 		Expect(err).To(MatchError("received packet with truncated connection ID, but didn't request truncation"))
@@ -581,10 +572,8 @@ var _ = Describe("Client", func() {
 		err := (&wire.Header{
 			DestConnectionID: connID2,
 			SrcConnectionID:  connID,
-			PacketNumber:     1,
-			PacketNumberLen:  protocol.PacketNumberLen1,
 			Version:          versionIETFFrames,
-		}).Write(buf, protocol.PerspectiveServer, versionIETFFrames)
+		}).Write(buf, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer, versionIETFFrames)
 		Expect(err).ToNot(HaveOccurred())
 		err = cl.handlePacket(addr, buf.Bytes())
 		Expect(err).To(MatchError(fmt.Sprintf("received a packet with an unexpected connection ID (0x0807060504030201, expected %s)", connID)))
@@ -663,13 +652,11 @@ var _ = Describe("Client", func() {
 			sess.EXPECT().handlePacket(gomock.Any())
 			cl.session = sess
 			ph := wire.Header{
-				PacketNumber:     1,
-				PacketNumberLen:  protocol.PacketNumberLen2,
 				DestConnectionID: connID,
 				SrcConnectionID:  connID,
 			}
 			b := &bytes.Buffer{}
-			err := ph.Write(b, protocol.PerspectiveServer, cl.version)
+			err := ph.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer, cl.version)
 			Expect(err).ToNot(HaveOccurred())
 			packetConn.dataToRead <- b.Bytes()
 

@@ -159,50 +159,50 @@ var _ = Describe("Packet packer", func() {
 			})
 
 			It("it omits the connection ID for forward-secure packets", func() {
-				ph := packer.getHeader(protocol.EncryptionForwardSecure)
+				_, _, ph := packer.getHeader(protocol.EncryptionForwardSecure)
 				Expect(ph.OmitConnectionID).To(BeFalse())
 				packer.SetOmitConnectionID()
-				ph = packer.getHeader(protocol.EncryptionForwardSecure)
+				_, _, ph = packer.getHeader(protocol.EncryptionForwardSecure)
 				Expect(ph.OmitConnectionID).To(BeTrue())
 			})
 
 			It("doesn't omit the connection ID for non-forward-secure packets", func() {
 				packer.SetOmitConnectionID()
-				ph := packer.getHeader(protocol.EncryptionSecure)
+				_, _, ph := packer.getHeader(protocol.EncryptionSecure)
 				Expect(ph.OmitConnectionID).To(BeFalse())
 			})
 
 			It("adds the Version Flag to the Public Header before the crypto handshake is finished", func() {
 				packer.perspective = protocol.PerspectiveClient
-				ph := packer.getHeader(protocol.EncryptionSecure)
+				_, _, ph := packer.getHeader(protocol.EncryptionSecure)
 				Expect(ph.VersionFlag).To(BeTrue())
 			})
 
 			It("doesn't add the Version Flag to the Public Header for forward-secure packets", func() {
 				packer.perspective = protocol.PerspectiveClient
-				ph := packer.getHeader(protocol.EncryptionForwardSecure)
+				_, _, ph := packer.getHeader(protocol.EncryptionForwardSecure)
 				Expect(ph.VersionFlag).To(BeFalse())
 			})
 
 			Context("diversificaton nonces", func() {
 				It("doesn't include a div nonce, when sending a packet with initial encryption", func() {
-					ph := packer.getHeader(protocol.EncryptionUnencrypted)
+					_, _, ph := packer.getHeader(protocol.EncryptionUnencrypted)
 					Expect(ph.DiversificationNonce).To(BeEmpty())
 				})
 
 				It("includes a div nonce, when sending a packet with secure encryption", func() {
-					ph := packer.getHeader(protocol.EncryptionSecure)
+					_, _, ph := packer.getHeader(protocol.EncryptionSecure)
 					Expect(ph.DiversificationNonce).To(Equal(divNonce))
 				})
 
 				It("doesn't include a div nonce, when sending a packet with forward-secure encryption", func() {
-					ph := packer.getHeader(protocol.EncryptionForwardSecure)
+					_, _, ph := packer.getHeader(protocol.EncryptionForwardSecure)
 					Expect(ph.DiversificationNonce).To(BeEmpty())
 				})
 
 				It("doesn't send a div nonce as a client", func() {
 					packer.perspective = protocol.PerspectiveClient
-					ph := packer.getHeader(protocol.EncryptionSecure)
+					_, _, ph := packer.getHeader(protocol.EncryptionSecure)
 					Expect(ph.DiversificationNonce).To(BeEmpty())
 				})
 			})
@@ -214,9 +214,17 @@ var _ = Describe("Packet packer", func() {
 			})
 
 			It("uses the Long Header format for non-forward-secure packets", func() {
-				h := packer.getHeader(protocol.EncryptionSecure)
+				_, _, h := packer.getHeader(protocol.EncryptionSecure)
 				Expect(h.IsLongHeader).To(BeTrue())
 				Expect(h.Version).To(Equal(versionIETFHeader))
+			})
+
+			It("sets the packet number", func() {
+				packer.packetNumberGenerator.next = 0xbeef
+				packer.srcConnID = protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8}
+				packer.destConnID = protocol.ConnectionID{8, 7, 6, 5, 4, 3, 2, 1}
+				pn, _, _ := packer.getHeader(protocol.EncryptionForwardSecure)
+				Expect(pn).To(Equal(protocol.PacketNumber(0xbeef)))
 			})
 
 			It("sets source and destination connection ID", func() {
@@ -224,7 +232,7 @@ var _ = Describe("Packet packer", func() {
 				destConnID := protocol.ConnectionID{8, 7, 6, 5, 4, 3, 2, 1}
 				packer.srcConnID = srcConnID
 				packer.destConnID = destConnID
-				h := packer.getHeader(protocol.EncryptionSecure)
+				_, _, h := packer.getHeader(protocol.EncryptionSecure)
 				Expect(h.SrcConnectionID).To(Equal(srcConnID))
 				Expect(h.DestConnectionID).To(Equal(destConnID))
 			})
@@ -235,32 +243,32 @@ var _ = Describe("Packet packer", func() {
 				dest1 := protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8}
 				dest2 := protocol.ConnectionID{8, 7, 6, 5, 4, 3, 2, 1}
 				packer.ChangeDestConnectionID(dest1)
-				h := packer.getHeader(protocol.EncryptionUnencrypted)
+				_, _, h := packer.getHeader(protocol.EncryptionUnencrypted)
 				Expect(h.SrcConnectionID).To(Equal(srcConnID))
 				Expect(h.DestConnectionID).To(Equal(dest1))
 				packer.ChangeDestConnectionID(dest2)
-				h = packer.getHeader(protocol.EncryptionUnencrypted)
+				_, _, h = packer.getHeader(protocol.EncryptionUnencrypted)
 				Expect(h.SrcConnectionID).To(Equal(srcConnID))
 				Expect(h.DestConnectionID).To(Equal(dest2))
 			})
 
 			It("uses the Short Header format for forward-secure packets", func() {
-				h := packer.getHeader(protocol.EncryptionForwardSecure)
+				_, pnLen, h := packer.getHeader(protocol.EncryptionForwardSecure)
 				Expect(h.IsLongHeader).To(BeFalse())
-				Expect(h.PacketNumberLen).To(BeNumerically(">", 0))
+				Expect(pnLen).To(BeNumerically(">", 0))
 			})
 
 			It("it omits the connection ID for forward-secure packets", func() {
-				h := packer.getHeader(protocol.EncryptionForwardSecure)
+				_, _, h := packer.getHeader(protocol.EncryptionForwardSecure)
 				Expect(h.OmitConnectionID).To(BeFalse())
 				packer.SetOmitConnectionID()
-				h = packer.getHeader(protocol.EncryptionForwardSecure)
+				_, _, h = packer.getHeader(protocol.EncryptionForwardSecure)
 				Expect(h.OmitConnectionID).To(BeTrue())
 			})
 
 			It("doesn't omit the connection ID for non-forward-secure packets", func() {
 				packer.SetOmitConnectionID()
-				h := packer.getHeader(protocol.EncryptionSecure)
+				_, _, h := packer.getHeader(protocol.EncryptionSecure)
 				Expect(h.OmitConnectionID).To(BeFalse())
 			})
 		})
@@ -281,7 +289,7 @@ var _ = Describe("Packet packer", func() {
 		r := bytes.NewReader(p.raw)
 		hdr, err := wire.ParseHeaderSentByServer(r)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(hdr.PayloadLen).To(BeEquivalentTo(r.Len()))
+		Expect(hdr.Length).To(BeEquivalentTo(r.Len()))
 	})
 
 	It("packs a CONNECTION_CLOSE", func() {
@@ -330,7 +338,7 @@ var _ = Describe("Packet packer", func() {
 		p2, err := packer.PackPacket()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(p2).ToNot(BeNil())
-		Expect(p2.header.PacketNumber).To(BeNumerically(">", p1.header.PacketNumber))
+		Expect(p2.packetNumber).To(BeNumerically(">", p1.packetNumber))
 	})
 
 	It("packs a STOP_WAITING frame first", func() {
@@ -437,7 +445,7 @@ var _ = Describe("Packet packer", func() {
 		p, err = packer.PackPacket()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(p).ToNot(BeNil())
-		Expect(p.header.PacketNumber).To(Equal(protocol.PacketNumber(1)))
+		Expect(p.packetNumber).To(Equal(protocol.PacketNumber(1)))
 		Expect(packer.packetNumberGenerator.Peek()).To(Equal(protocol.PacketNumber(2)))
 	})
 
@@ -630,7 +638,7 @@ var _ = Describe("Packet packer", func() {
 			r := bytes.NewReader(p.raw)
 			hdr, err := wire.ParseHeaderSentByServer(r)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(hdr.PayloadLen).To(BeEquivalentTo(r.Len()))
+			Expect(hdr.Length).To(BeEquivalentTo(r.Len()))
 		})
 
 		It("sends unencrypted stream data on the crypto stream", func() {
@@ -811,7 +819,7 @@ var _ = Describe("Packet packer", func() {
 			r := bytes.NewReader(packet.raw)
 			hdr, err := wire.ParseHeaderSentByClient(r)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(hdr.PayloadLen).To(BeEquivalentTo(r.Len()))
+			Expect(hdr.Length).To(BeEquivalentTo(r.Len()))
 		})
 
 		It("packs a retransmission for an Initial packet", func() {
@@ -861,8 +869,7 @@ var _ = Describe("Packet packer", func() {
 			Expect(p.frames).To(HaveLen(3))
 			Expect(p.frames[0]).To(BeAssignableToTypeOf(&wire.StopWaitingFrame{}))
 			Expect(p.frames[0].(*wire.StopWaitingFrame).LeastUnacked).To(Equal(protocol.PacketNumber(7)))
-			Expect(p.frames[0].(*wire.StopWaitingFrame).PacketNumber).To(Equal(p.header.PacketNumber))
-			Expect(p.frames[0].(*wire.StopWaitingFrame).PacketNumberLen).To(Equal(p.header.PacketNumberLen))
+			Expect(p.frames[0].(*wire.StopWaitingFrame).PacketNumber).To(Equal(p.packetNumber))
 			Expect(p.frames[1:]).To(Equal(frames))
 		})
 

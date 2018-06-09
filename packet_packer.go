@@ -17,6 +17,7 @@ import (
 
 type packedPacket struct {
 	header          *wire.Header
+	packetNumber    protocol.PacketNumber
 	raw             []byte
 	frames          []wire.Frame
 	encryptionLevel protocol.EncryptionLevel
@@ -24,7 +25,7 @@ type packedPacket struct {
 
 func (p *packedPacket) ToAckHandlerPacket() *ackhandler.Packet {
 	return &ackhandler.Packet{
-		PacketNumber:    p.header.PacketNumber,
+		PacketNumber:    p.packetNumber,
 		PacketType:      p.header.Type,
 		Frames:          p.frames,
 		Length:          protocol.ByteCount(len(p.raw)),
@@ -112,10 +113,11 @@ func newPacketPacker(
 func (p *packetPacker) PackConnectionClose(ccf *wire.ConnectionCloseFrame) (*packedPacket, error) {
 	frames := []wire.Frame{ccf}
 	encLevel, sealer := p.cryptoSetup.GetSealer()
-	header := p.getHeader(encLevel)
-	raw, err := p.writeAndSealPacket(header, frames, sealer)
+	pn, pnLen, header := p.getHeader(encLevel)
+	raw, err := p.writeAndSealPacket(header, pn, pnLen, frames, sealer)
 	return &packedPacket{
 		header:          header,
+		packetNumber:    pn,
 		raw:             raw,
 		frames:          frames,
 		encryptionLevel: encLevel,
@@ -127,18 +129,19 @@ func (p *packetPacker) PackAckPacket() (*packedPacket, error) {
 		return nil, errors.New("packet packer BUG: no ack frame queued")
 	}
 	encLevel, sealer := p.cryptoSetup.GetSealer()
-	header := p.getHeader(encLevel)
+	pn, pnLen, header := p.getHeader(encLevel)
 	frames := []wire.Frame{p.ackFrame}
 	if p.stopWaiting != nil { // a STOP_WAITING will only be queued when using gQUIC
-		p.stopWaiting.PacketNumber = header.PacketNumber
-		p.stopWaiting.PacketNumberLen = header.PacketNumberLen
+		p.stopWaiting.PacketNumber = pn
+		p.stopWaiting.PacketNumberLen = pnLen
 		frames = append(frames, p.stopWaiting)
 		p.stopWaiting = nil
 	}
 	p.ackFrame = nil
-	raw, err := p.writeAndSealPacket(header, frames, sealer)
+	raw, err := p.writeAndSealPacket(header, pn, pnLen, frames, sealer)
 	return &packedPacket{
 		header:          header,
+		packetNumber:    pn,
 		raw:             raw,
 		frames:          frames,
 		encryptionLevel: encLevel,
@@ -171,12 +174,12 @@ func (p *packetPacker) PackRetransmission(packet *ackhandler.Packet) ([]*packedP
 		var frames []wire.Frame
 		var payloadLength protocol.ByteCount
 
-		header := p.getHeader(encLevel)
-		headerLength, err := header.GetLength(p.perspective, p.version)
+		pn, pnLen, header := p.getHeader(encLevel)
+		headerLen, err := header.GetLength(pnLen, p.perspective, p.version)
 		if err != nil {
 			return nil, err
 		}
-		maxSize := p.maxPacketSize - protocol.ByteCount(sealer.Overhead()) - headerLength
+		maxSize := p.maxPacketSize - protocol.ByteCount(sealer.Overhead()) - headerLen
 
 		// for gQUIC: add a STOP_WAITING for *every* retransmission
 		if p.version.UsesStopWaitingFrames() {
@@ -186,8 +189,8 @@ func (p *packetPacker) PackRetransmission(packet *ackhandler.Packet) ([]*packedP
 			// create a new StopWaitingFrame, since we might need to send more than one packet as a retransmission
 			swf := &wire.StopWaitingFrame{
 				LeastUnacked:    p.stopWaiting.LeastUnacked,
-				PacketNumber:    header.PacketNumber,
-				PacketNumberLen: header.PacketNumberLen,
+				PacketNumber:    pn,
+				PacketNumberLen: pnLen,
 			}
 			payloadLength += swf.Length(p.version)
 			frames = append(frames, swf)
@@ -234,12 +237,13 @@ func (p *packetPacker) PackRetransmission(packet *ackhandler.Packet) ([]*packedP
 		if sf, ok := frames[len(frames)-1].(*wire.StreamFrame); ok {
 			sf.DataLenPresent = false
 		}
-		raw, err := p.writeAndSealPacket(header, frames, sealer)
+		raw, err := p.writeAndSealPacket(header, pn, pnLen, frames, sealer)
 		if err != nil {
 			return nil, err
 		}
 		packets = append(packets, &packedPacket{
 			header:          header,
+			packetNumber:    pn,
 			raw:             raw,
 			frames:          frames,
 			encryptionLevel: encLevel,
@@ -259,7 +263,7 @@ func (p *packetPacker) packHandshakeRetransmission(packet *ackhandler.Packet) (*
 	if packet.PacketType == protocol.PacketTypeInitial {
 		p.hasSentPacket = false
 	}
-	header := p.getHeader(packet.EncryptionLevel)
+	pn, pnLen, header := p.getHeader(packet.EncryptionLevel)
 	header.Type = packet.PacketType
 	var frames []wire.Frame
 	if p.version.UsesStopWaitingFrames() { // for gQUIC: pack a STOP_WAITING first
@@ -267,16 +271,17 @@ func (p *packetPacker) packHandshakeRetransmission(packet *ackhandler.Packet) (*
 			return nil, errors.New("PacketPacker BUG: Handshake retransmissions must contain a STOP_WAITING frame")
 		}
 		swf := p.stopWaiting
-		swf.PacketNumber = header.PacketNumber
-		swf.PacketNumberLen = header.PacketNumberLen
+		swf.PacketNumber = pn
+		swf.PacketNumberLen = pnLen
 		p.stopWaiting = nil
 		frames = append([]wire.Frame{swf}, packet.Frames...)
 	} else {
 		frames = packet.Frames
 	}
-	raw, err := p.writeAndSealPacket(header, frames, sealer)
+	raw, err := p.writeAndSealPacket(header, pn, pnLen, frames, sealer)
 	return &packedPacket{
 		header:          header,
+		packetNumber:    pn,
 		raw:             raw,
 		frames:          frames,
 		encryptionLevel: packet.EncryptionLevel,
@@ -297,17 +302,17 @@ func (p *packetPacker) PackPacket() (*packedPacket, error) {
 
 	encLevel, sealer := p.cryptoSetup.GetSealer()
 
-	header := p.getHeader(encLevel)
-	headerLength, err := header.GetLength(p.perspective, p.version)
+	pn, pnLen, header := p.getHeader(encLevel)
+	headerLen, err := header.GetLength(pnLen, p.perspective, p.version)
 	if err != nil {
 		return nil, err
 	}
 	if p.stopWaiting != nil {
-		p.stopWaiting.PacketNumber = header.PacketNumber
-		p.stopWaiting.PacketNumberLen = header.PacketNumberLen
+		p.stopWaiting.PacketNumber = pn
+		p.stopWaiting.PacketNumberLen = pnLen
 	}
 
-	maxSize := p.maxPacketSize - protocol.ByteCount(sealer.Overhead()) - headerLength
+	maxSize := p.maxPacketSize - protocol.ByteCount(sealer.Overhead()) - headerLen
 	payloadFrames, err := p.composeNextPacket(maxSize, p.canSendData(encLevel))
 	if err != nil {
 		return nil, err
@@ -337,12 +342,13 @@ func (p *packetPacker) PackPacket() (*packedPacket, error) {
 	p.stopWaiting = nil
 	p.ackFrame = nil
 
-	raw, err := p.writeAndSealPacket(header, payloadFrames, sealer)
+	raw, err := p.writeAndSealPacket(header, pn, pnLen, payloadFrames, sealer)
 	if err != nil {
 		return nil, err
 	}
 	return &packedPacket{
 		header:          header,
+		packetNumber:    pn,
 		raw:             raw,
 		frames:          payloadFrames,
 		encryptionLevel: encLevel,
@@ -351,21 +357,22 @@ func (p *packetPacker) PackPacket() (*packedPacket, error) {
 
 func (p *packetPacker) packCryptoPacket() (*packedPacket, error) {
 	encLevel, sealer := p.cryptoSetup.GetSealerForCryptoStream()
-	header := p.getHeader(encLevel)
-	headerLength, err := header.GetLength(p.perspective, p.version)
+	pn, pnLen, header := p.getHeader(encLevel)
+	headerLen, err := header.GetLength(pnLen, p.perspective, p.version)
 	if err != nil {
 		return nil, err
 	}
-	maxLen := p.maxPacketSize - protocol.ByteCount(sealer.Overhead()) - protocol.NonForwardSecurePacketSizeReduction - headerLength
+	maxLen := p.maxPacketSize - protocol.ByteCount(sealer.Overhead()) - protocol.NonForwardSecurePacketSizeReduction - headerLen
 	sf := p.streams.PopCryptoStreamFrame(maxLen)
 	sf.DataLenPresent = false
 	frames := []wire.Frame{sf}
-	raw, err := p.writeAndSealPacket(header, frames, sealer)
+	raw, err := p.writeAndSealPacket(header, pn, pnLen, frames, sealer)
 	if err != nil {
 		return nil, err
 	}
 	return &packedPacket{
 		header:          header,
+		packetNumber:    pn,
 		raw:             raw,
 		frames:          frames,
 		encryptionLevel: encLevel,
@@ -446,22 +453,20 @@ func (p *packetPacker) QueueControlFrame(frame wire.Frame) {
 	}
 }
 
-func (p *packetPacker) getHeader(encLevel protocol.EncryptionLevel) *wire.Header {
-	pnum := p.packetNumberGenerator.Peek()
-	packetNumberLen := p.getPacketNumberLen(pnum)
+func (p *packetPacker) getHeader(encLevel protocol.EncryptionLevel) (protocol.PacketNumber, protocol.PacketNumberLen, *wire.Header) {
+	pn := p.packetNumberGenerator.Peek()
+	pnLen := p.getPacketNumberLen(pn)
 
 	header := &wire.Header{
 		DestConnectionID: p.destConnID,
 		SrcConnectionID:  p.srcConnID,
-		PacketNumber:     pnum,
-		PacketNumberLen:  packetNumberLen,
 	}
 
 	if p.version.UsesTLS() && encLevel != protocol.EncryptionForwardSecure {
 		header.IsLongHeader = true
-		// Set the payload len to maximum size.
+		// Set the length to maximum size.
 		// Since it is encoded as a varint, this guarantees us that the header will end up at most as big as GetLength() returns.
-		header.PayloadLen = p.maxPacketSize
+		header.Length = p.maxPacketSize
 		if !p.hasSentPacket && p.perspective == protocol.PerspectiveClient {
 			header.Type = protocol.PacketTypeInitial
 		} else {
@@ -485,11 +490,13 @@ func (p *packetPacker) getHeader(encLevel protocol.EncryptionLevel) *wire.Header
 			header.Version = p.version
 		}
 	}
-	return header
+	return pn, pnLen, header
 }
 
 func (p *packetPacker) writeAndSealPacket(
 	header *wire.Header,
+	pn protocol.PacketNumber,
+	pnLen protocol.PacketNumberLen,
 	payloadFrames []wire.Frame,
 	sealer handshake.Sealer,
 ) ([]byte, error) {
@@ -499,18 +506,21 @@ func (p *packetPacker) writeAndSealPacket(
 	// the payload length is only needed for Long Headers
 	if header.IsLongHeader {
 		if header.Type == protocol.PacketTypeInitial {
-			headerLen, _ := header.GetLength(p.perspective, p.version)
-			header.PayloadLen = protocol.ByteCount(protocol.MinInitialPacketSize) - headerLen
+			headerLen, err := header.GetLength(pnLen, p.perspective, p.version)
+			if err != nil {
+				return nil, err
+			}
+			header.Length = protocol.ByteCount(protocol.MinInitialPacketSize) - headerLen + protocol.ByteCount(pnLen)
 		} else {
-			payloadLen := protocol.ByteCount(sealer.Overhead())
+			payloadLen := protocol.ByteCount(sealer.Overhead()) + protocol.ByteCount(pnLen)
 			for _, frame := range payloadFrames {
 				payloadLen += frame.Length(p.version)
 			}
-			header.PayloadLen = payloadLen
+			header.Length = payloadLen
 		}
 	}
 
-	if err := header.Write(buffer, p.perspective, p.version); err != nil {
+	if err := header.Write(buffer, pn, pnLen, p.perspective, p.version); err != nil {
 		return nil, err
 	}
 	payloadStartIndex := buffer.Len()
@@ -541,11 +551,10 @@ func (p *packetPacker) writeAndSealPacket(
 	}
 
 	raw = raw[0:buffer.Len()]
-	_ = sealer.Seal(raw[payloadStartIndex:payloadStartIndex], raw[payloadStartIndex:], header.PacketNumber, raw[:payloadStartIndex])
+	_ = sealer.Seal(raw[payloadStartIndex:payloadStartIndex], raw[payloadStartIndex:], pn, raw[:payloadStartIndex])
 	raw = raw[0 : buffer.Len()+sealer.Overhead()]
 
-	num := p.packetNumberGenerator.Pop()
-	if num != header.PacketNumber {
+	if num := p.packetNumberGenerator.Pop(); num != pn {
 		return nil, errors.New("packetPacker BUG: Peeked and Popped packet numbers do not match")
 	}
 	p.hasSentPacket = true

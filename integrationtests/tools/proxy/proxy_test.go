@@ -23,13 +23,11 @@ var _ = Describe("QUIC Proxy", func() {
 	makePacket := func(p protocol.PacketNumber, payload []byte) []byte {
 		b := &bytes.Buffer{}
 		hdr := wire.Header{
-			PacketNumber:     p,
-			PacketNumberLen:  protocol.PacketNumberLen6,
 			DestConnectionID: protocol.ConnectionID{0xde, 0xad, 0xbe, 0xef, 0, 0, 0x13, 0x37},
 			SrcConnectionID:  protocol.ConnectionID{0xde, 0xad, 0xbe, 0xef, 0, 0, 0x13, 0x37},
 			OmitConnectionID: false,
 		}
-		hdr.Write(b, protocol.PerspectiveServer, protocol.VersionWhatever)
+		hdr.Write(b, p, protocol.PacketNumberLen4, protocol.PerspectiveServer, protocol.VersionWhatever)
 		raw := b.Bytes()
 		raw = append(raw, payload...)
 		return raw

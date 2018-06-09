@@ -317,10 +317,10 @@ func (s *server) handleIETFQUICPacket(hdr *wire.Header, packet []byte, remoteAdd
 		if !s.supportsTLS {
 			return errors.New("Received an IETF QUIC Long Header")
 		}
-		if protocol.ByteCount(len(packet)-len(hdr.Raw)) < hdr.PayloadLen {
-			return fmt.Errorf("packet payload (%d bytes) is smaller than the expected payload length (%d bytes)", len(packet)-len(hdr.Raw), hdr.PayloadLen)
+		if protocol.ByteCount(len(packet)-len(hdr.Raw)) < hdr.Length {
+			return fmt.Errorf("packet payload (%d bytes) is smaller than the expected payload length (%d bytes)", len(packet)-len(hdr.Raw), hdr.Length)
 		}
-		packet = packet[:int(hdr.PayloadLen)+len(hdr.Raw)]
+		packet = packet[:int(hdr.Length)+len(hdr.Raw)]
 		// TODO(#1312): implement parsing of compound packets
 
 		switch hdr.Type {

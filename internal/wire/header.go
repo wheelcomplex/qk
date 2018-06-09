@@ -20,9 +20,6 @@ type Header struct {
 	SrcConnectionID  protocol.ConnectionID
 	OmitConnectionID bool
 
-	PacketNumberLen protocol.PacketNumberLen
-	PacketNumber    protocol.PacketNumber
-
 	IsVersionNegotiation bool
 	SupportedVersions    []protocol.VersionNumber // Version Number sent in a Version Negotiation Packet by the server
 
@@ -35,7 +32,7 @@ type Header struct {
 	Type         protocol.PacketType
 	IsLongHeader bool
 	KeyPhase     int
-	PayloadLen   protocol.ByteCount
+	Length       protocol.ByteCount
 }
 
 // ParseHeaderSentByServer parses the header for a packet that was sent by the server.
@@ -87,21 +84,36 @@ func parsePacketHeader(b *bytes.Reader, sentBy protocol.Perspective, isPublicHea
 	return parseHeader(b)
 }
 
+// ReadPacketNumber reads the packet number.
+// Since the packet number follows the header, it should be called after parsing the header.
+func ReadPacketNumber(b *bytes.Reader, flagByte byte, version protocol.VersionNumber) (protocol.PacketNumber, protocol.PacketNumberLen, error) {
+	if !version.UsesTLS() {
+		return readPublicHeaderPacketNumber(b, flagByte)
+	}
+	return readPacketNumber(b, flagByte)
+}
+
 // Write writes the Header.
-func (h *Header) Write(b *bytes.Buffer, pers protocol.Perspective, version protocol.VersionNumber) error {
+func (h *Header) Write(
+	b *bytes.Buffer,
+	pn protocol.PacketNumber,
+	pnLen protocol.PacketNumberLen,
+	pers protocol.Perspective,
+	version protocol.VersionNumber,
+) error {
 	if !version.UsesTLS() {
 		h.IsPublicHeader = true // save that this is a Public Header, so we can log it correctly later
-		return h.writePublicHeader(b, pers, version)
+		return h.writePublicHeader(b, pn, pnLen, pers)
 	}
-	return h.writeHeader(b)
+	return h.writeHeader(b, pn, pnLen)
 }
 
 // GetLength determines the length of the Header.
-func (h *Header) GetLength(pers protocol.Perspective, version protocol.VersionNumber) (protocol.ByteCount, error) {
+func (h *Header) GetLength(pnLen protocol.PacketNumberLen, pers protocol.Perspective, version protocol.VersionNumber) (protocol.ByteCount, error) {
 	if !version.UsesTLS() {
-		return h.getPublicHeaderLength(pers)
+		return h.getPublicHeaderLength(pnLen, pers)
 	}
-	return h.getHeaderLength()
+	return h.getHeaderLength(pnLen), nil
 }
 
 // Log logs the Header

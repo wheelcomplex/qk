@@ -46,38 +46,45 @@ var _ = Describe("Stateless TLS handling", func() {
 	})
 
 	getPacket := func(f wire.Frame) (*wire.Header, []byte) {
-		hdrBuf := &bytes.Buffer{}
+		buf := &bytes.Buffer{}
 		hdr := &wire.Header{
 			IsLongHeader:     true,
 			DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 			SrcConnectionID:  protocol.ConnectionID{8, 7, 6, 5, 4, 3, 2, 1},
-			PacketNumber:     1,
-			PacketNumberLen:  protocol.PacketNumberLen1,
 			Version:          protocol.VersionTLS,
 		}
-		err := hdr.Write(hdrBuf, protocol.PerspectiveClient, protocol.VersionTLS)
+		pn := protocol.PacketNumber(1)
+		// data, err := packUnencryptedPacket(aead, hdr, pn, f, protocol.PerspectiveClient, utils.DefaultLogger)
+		// Expect(err).ToNot(HaveOccurred())
+		err := hdr.Write(buf, pn, protocol.PacketNumberLen4, protocol.PerspectiveClient, protocol.VersionTLS)
 		Expect(err).ToNot(HaveOccurred())
-		hdr.Raw = hdrBuf.Bytes()
+		hdrLen := buf.Len()
 		aead, err := crypto.NewNullAEAD(protocol.PerspectiveClient, hdr.DestConnectionID, protocol.VersionTLS)
 		Expect(err).ToNot(HaveOccurred())
-		buf := &bytes.Buffer{}
+
 		err = f.Write(buf, protocol.VersionTLS)
 		Expect(err).ToNot(HaveOccurred())
 		// pad the packet such that is has exactly the required minimum size
-		buf.Write(bytes.Repeat([]byte{0}, protocol.MinInitialPacketSize-len(hdr.Raw)-aead.Overhead()-buf.Len()))
-		data := aead.Seal(nil, buf.Bytes(), 1, hdr.Raw)
-		Expect(len(hdr.Raw) + len(data)).To(Equal(protocol.MinInitialPacketSize))
-		return hdr, append(hdr.Raw, data...)
+		buf.Write(bytes.Repeat([]byte{0}, protocol.MinInitialPacketSize-aead.Overhead()-buf.Len()))
+		raw := buf.Bytes()
+		hdr.Raw = raw[:hdrLen-4]
+		data := aead.Seal(nil, raw[hdrLen:], pn, raw[:hdrLen])
+		data = append(raw[:hdrLen], data...)
+		Expect(data).To(HaveLen(protocol.MinInitialPacketSize))
+		return hdr, data
 	}
 
 	unpackPacket := func(data []byte) (*wire.Header, []byte) {
 		r := bytes.NewReader(conn.dataWritten.Bytes())
 		hdr, err := wire.ParseHeaderSentByServer(r)
 		Expect(err).ToNot(HaveOccurred())
-		hdr.Raw = data[:len(data)-r.Len()]
+		pn, _, err := wire.ReadPacketNumber(r, conn.dataWritten.Bytes()[0], protocol.VersionTLS)
+		Expect(err).ToNot(HaveOccurred())
+		hdrLen := len(data) - r.Len()
+		hdr.Raw = data[:hdrLen]
 		aead, err := crypto.NewNullAEAD(protocol.PerspectiveClient, hdr.SrcConnectionID, protocol.VersionTLS)
 		Expect(err).ToNot(HaveOccurred())
-		payload, err := aead.Open(nil, data[len(data)-r.Len():], hdr.PacketNumber, hdr.Raw)
+		payload, err := aead.Open(nil, data[hdrLen:], pn, hdr.Raw)
 		Expect(err).ToNot(HaveOccurred())
 		return hdr, payload
 	}
@@ -86,7 +93,6 @@ var _ = Describe("Stateless TLS handling", func() {
 		hdr := &wire.Header{
 			DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 			SrcConnectionID:  protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
-			PacketNumberLen:  protocol.PacketNumberLen1,
 			Version:          0x1337,
 		}
 		server.HandleInitial(nil, hdr, bytes.Repeat([]byte{0}, protocol.MinInitialPacketSize))
@@ -125,7 +131,7 @@ var _ = Describe("Stateless TLS handling", func() {
 		Expect(replyHdr.Type).To(Equal(protocol.PacketTypeRetry))
 		Expect(replyHdr.SrcConnectionID).To(Equal(hdr.DestConnectionID))
 		Expect(replyHdr.DestConnectionID).To(Equal(hdr.SrcConnectionID))
-		Expect(replyHdr.PayloadLen).To(BeEquivalentTo(r.Len()))
+		Expect(replyHdr.Length).To(BeEquivalentTo(r.Len()))
 		Expect(sessionChan).ToNot(Receive())
 	})
 

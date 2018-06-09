@@ -338,10 +338,10 @@ func (c *client) handleIETFQUICPacket(hdr *wire.Header, packet []byte, remoteAdd
 		if hdr.Type != protocol.PacketTypeRetry && hdr.Type != protocol.PacketTypeHandshake {
 			return fmt.Errorf("Received unsupported packet type: %s", hdr.Type)
 		}
-		if protocol.ByteCount(len(packet)-len(hdr.Raw)) < hdr.PayloadLen {
-			return fmt.Errorf("packet payload (%d bytes) is smaller than the expected payload length (%d bytes)", len(packet)-len(hdr.Raw), hdr.PayloadLen)
+		if protocol.ByteCount(len(packet)-len(hdr.Raw)) < hdr.Length {
+			return fmt.Errorf("packet length (%d bytes) is smaller than the expected length (%d bytes)", len(packet)-len(hdr.Raw), hdr.Length)
 		}
-		packet = packet[:len(hdr.Raw)+int(hdr.PayloadLen)]
+		packet = packet[:len(hdr.Raw)+int(hdr.Length)]
 		// TODO(#1312): implement parsing of compound packets
 	}
 

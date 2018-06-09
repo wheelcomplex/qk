@@ -616,9 +616,10 @@ func (s *session) handlePacketImpl(p *receivedPacket) error {
 	packet, err := s.unpacker.Unpack(hdr, data)
 	if s.logger.Debug() {
 		if err != nil {
-			s.logger.Debugf("<- Reading packet 0x%x (%d bytes) for connection %s", hdr.PacketNumber, len(data), hdr.DestConnectionID)
+			s.logger.Debugf("<- Reading a packet (%d bytes) for connection %s", len(data), hdr.DestConnectionID)
+			s.logger.Debugf("%s", err)
 		} else {
-			s.logger.Debugf("<- Reading packet 0x%x (%d bytes) for connection %s, %s", hdr.PacketNumber, len(data), hdr.DestConnectionID, packet.encryptionLevel)
+			s.logger.Debugf("<- Reading packet %#x (%d bytes) for connection %s, %s", packet.packetNumber, len(data), hdr.DestConnectionID, packet.encryptionLevel)
 		}
 		hdr.Log(s.logger)
 	}
@@ -648,13 +649,13 @@ func (s *session) handlePacketImpl(p *receivedPacket) error {
 		}
 	}
 
-	s.lastRcvdPacketNumber = hdr.PacketNumber
+	s.lastRcvdPacketNumber = packet.packetNumber
 
 	// If this is a Retry packet, there's no need to send an ACK.
 	// The session will be closed and recreated as soon as the crypto setup processed the HRR.
 	if hdr.Type != protocol.PacketTypeRetry {
 		isRetransmittable := ackhandler.HasRetransmittableFrames(packet.frames)
-		if err := s.receivedPacketHandler.ReceivedPacket(hdr.PacketNumber, p.rcvTime, isRetransmittable); err != nil {
+		if err := s.receivedPacketHandler.ReceivedPacket(packet.packetNumber, p.rcvTime, isRetransmittable); err != nil {
 			return err
 		}
 	}
@@ -1077,7 +1078,7 @@ func (s *session) logPacket(packet *packedPacket) {
 		// We don't need to allocate the slices for calling the format functions
 		return
 	}
-	s.logger.Debugf("-> Sending packet 0x%x (%d bytes) for connection %s, %s", packet.header.PacketNumber, len(packet.raw), s.srcConnID, packet.encryptionLevel)
+	s.logger.Debugf("-> Sending packet 0x%x (%d bytes) for connection %s, %s", packet.packetNumber, len(packet.raw), s.srcConnID, packet.encryptionLevel)
 	packet.header.Log(s.logger)
 	for _, frame := range packet.frames {
 		wire.LogFrame(s.logger, frame, true)
@@ -1188,10 +1189,10 @@ func (s *session) tryQueueingUndecryptablePacket(p *receivedPacket) {
 			s.receivedTooManyUndecrytablePacketsTime = time.Now()
 			s.maybeResetTimer()
 		}
-		s.logger.Infof("Dropping undecrytable packet 0x%x (undecryptable packet queue full)", p.header.PacketNumber)
+		s.logger.Infof("Dropping undecrytable packet (undecryptable packet queue full)")
 		return
 	}
-	s.logger.Infof("Queueing packet 0x%x for later decryption", p.header.PacketNumber)
+	s.logger.Infof("Queueing packet for later decryption")
 	s.undecryptablePackets = append(s.undecryptablePackets, p)
 }
 

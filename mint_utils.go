@@ -108,17 +108,22 @@ func tlsToMintConfig(tlsConf *tls.Config, pers protocol.Perspective) (*mint.Conf
 
 // unpackInitialOrRetryPacket unpacks packets Initial and Retry packets
 // These packets must contain a STREAM_FRAME for the crypto stream, starting at offset 0.
-func unpackInitialPacket(aead crypto.AEAD, hdr *wire.Header, data []byte, logger utils.Logger, version protocol.VersionNumber) (*wire.StreamFrame, error) {
-	decrypted, err := aead.Open(data[:0], data[len(hdr.Raw):], hdr.PacketNumber, hdr.Raw)
+func unpackInitialPacket(aead crypto.AEAD, hdr *wire.Header, data []byte, logger utils.Logger, version protocol.VersionNumber) (protocol.PacketNumber, *wire.StreamFrame, error) {
+	pn, pnLen, err := wire.ReadPacketNumber(bytes.NewReader(data[len(hdr.Raw):]), hdr.Raw[0], protocol.VersionTLS)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
+	}
+	payloadOffset := len(hdr.Raw) + int(pnLen)
+	decrypted, err := aead.Open(data[payloadOffset:payloadOffset], data[payloadOffset:], pn, data[:payloadOffset])
+	if err != nil {
+		return 0, nil, err
 	}
 	var frame *wire.StreamFrame
 	r := bytes.NewReader(decrypted)
 	for {
-		f, err := wire.ParseNextFrame(r, hdr.PacketNumber, hdr.PacketNumberLen, version)
+		f, err := wire.ParseNextFrame(r, pn, pnLen, version)
 		if err != nil {
-			return nil, err
+			return 0, nil, err
 		}
 		var ok bool
 		if frame, ok = f.(*wire.StreamFrame); ok || frame == nil {
@@ -126,30 +131,37 @@ func unpackInitialPacket(aead crypto.AEAD, hdr *wire.Header, data []byte, logger
 		}
 	}
 	if frame == nil {
-		return nil, errors.New("Packet doesn't contain a STREAM_FRAME")
+		return 0, nil, errors.New("Packet doesn't contain a STREAM_FRAME")
 	}
 	if frame.StreamID != version.CryptoStreamID() {
-		return nil, fmt.Errorf("Received STREAM_FRAME for wrong stream (Stream ID %d)", frame.StreamID)
+		return 0, nil, fmt.Errorf("Received STREAM_FRAME for wrong stream (Stream ID %d)", frame.StreamID)
 	}
 	// We don't need a check for the stream ID here.
 	// The packetUnpacker checks that there's no unencrypted stream data except for the crypto stream.
 	if frame.Offset != 0 {
-		return nil, errors.New("received stream data with non-zero offset")
+		return 0, nil, errors.New("received stream data with non-zero offset")
 	}
 	if logger.Debug() {
-		logger.Debugf("<- Reading packet 0x%x (%d bytes) for connection %s", hdr.PacketNumber, len(data)+len(hdr.Raw), hdr.DestConnectionID)
+		logger.Debugf("<- Reading packet %#x (%d bytes) for connection %s", pn, len(data)+len(hdr.Raw), hdr.DestConnectionID)
 		hdr.Log(logger)
 		wire.LogFrame(logger, frame, false)
 	}
-	return frame, nil
+	return pn, frame, nil
 }
 
 // packUnencryptedPacket provides a low-overhead way to pack a packet.
 // It is supposed to be used in the early stages of the handshake, before a session (which owns a packetPacker) is available.
-func packUnencryptedPacket(aead crypto.AEAD, hdr *wire.Header, f wire.Frame, pers protocol.Perspective, logger utils.Logger) ([]byte, error) {
+func packUnencryptedPacket(
+	aead crypto.AEAD,
+	hdr *wire.Header,
+	pn protocol.PacketNumber,
+	f wire.Frame,
+	pers protocol.Perspective,
+	logger utils.Logger,
+) ([]byte, error) {
 	raw := *getPacketBuffer()
 	buffer := bytes.NewBuffer(raw[:0])
-	if err := hdr.Write(buffer, pers, hdr.Version); err != nil {
+	if err := hdr.Write(buffer, pn, protocol.PacketNumberLen2, pers, hdr.Version); err != nil {
 		return nil, err
 	}
 	payloadStartIndex := buffer.Len()
@@ -157,10 +169,10 @@ func packUnencryptedPacket(aead crypto.AEAD, hdr *wire.Header, f wire.Frame, per
 		return nil, err
 	}
 	raw = raw[0:buffer.Len()]
-	_ = aead.Seal(raw[payloadStartIndex:payloadStartIndex], raw[payloadStartIndex:], hdr.PacketNumber, raw[:payloadStartIndex])
+	_ = aead.Seal(raw[payloadStartIndex:payloadStartIndex], raw[payloadStartIndex:], pn, raw[:payloadStartIndex])
 	raw = raw[0 : buffer.Len()+aead.Overhead()]
 	if logger.Debug() {
-		logger.Debugf("-> Sending packet 0x%x (%d bytes) for connection %s, %s", hdr.PacketNumber, len(raw), hdr.SrcConnectionID, protocol.EncryptionUnencrypted)
+		logger.Debugf("-> Sending packet 0x%x (%d bytes) for connection %s, %s", pn, len(raw), hdr.SrcConnectionID, protocol.EncryptionUnencrypted)
 		hdr.Log(logger)
 		wire.LogFrame(logger, f, true)
 	}

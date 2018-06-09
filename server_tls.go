@@ -124,11 +124,9 @@ func (s *serverTLS) sendConnectionClose(remoteAddr net.Addr, clientHdr *wire.Hea
 		Type:             protocol.PacketTypeHandshake,
 		SrcConnectionID:  clientHdr.DestConnectionID,
 		DestConnectionID: clientHdr.SrcConnectionID,
-		PacketNumber:     1, // random packet number
-		PacketNumberLen:  protocol.PacketNumberLen1,
 		Version:          clientHdr.Version,
 	}
-	data, err := packUnencryptedPacket(aead, replyHdr, ccf, protocol.PerspectiveServer, s.logger)
+	data, err := packUnencryptedPacket(aead, replyHdr, 1, ccf, protocol.PerspectiveServer, s.logger)
 	if err != nil {
 		return err
 	}
@@ -156,12 +154,12 @@ func (s *serverTLS) handleInitialImpl(remoteAddr net.Addr, hdr *wire.Header, dat
 	if err != nil {
 		return nil, nil, err
 	}
-	frame, err := unpackInitialPacket(aead, hdr, data, s.logger, hdr.Version)
+	pn, frame, err := unpackInitialPacket(aead, hdr, data, s.logger, hdr.Version)
 	if err != nil {
 		s.logger.Debugf("Error unpacking initial packet: %s", err)
 		return nil, nil, nil
 	}
-	sess, connID, err := s.handleUnpackedInitial(remoteAddr, hdr, frame, aead)
+	sess, connID, err := s.handleUnpackedInitial(remoteAddr, hdr, pn, frame, aead)
 	if err != nil {
 		if ccerr := s.sendConnectionClose(remoteAddr, hdr, aead, err); ccerr != nil {
 			s.logger.Debugf("Error sending CONNECTION_CLOSE: %s", ccerr)
@@ -171,7 +169,13 @@ func (s *serverTLS) handleInitialImpl(remoteAddr net.Addr, hdr *wire.Header, dat
 	return sess, connID, nil
 }
 
-func (s *serverTLS) handleUnpackedInitial(remoteAddr net.Addr, hdr *wire.Header, frame *wire.StreamFrame, aead crypto.AEAD) (packetHandler, protocol.ConnectionID, error) {
+func (s *serverTLS) handleUnpackedInitial(
+	remoteAddr net.Addr,
+	hdr *wire.Header,
+	pn protocol.PacketNumber,
+	frame *wire.StreamFrame,
+	aead crypto.AEAD,
+) (packetHandler, protocol.ConnectionID, error) {
 	version := hdr.Version
 	bc := handshake.NewCryptoStreamConn(remoteAddr)
 	bc.AddDataForReading(frame.Data)
@@ -192,12 +196,10 @@ func (s *serverTLS) handleUnpackedInitial(remoteAddr net.Addr, hdr *wire.Header,
 			Type:             protocol.PacketTypeRetry,
 			DestConnectionID: hdr.SrcConnectionID,
 			SrcConnectionID:  hdr.DestConnectionID,
-			PayloadLen:       f.Length(version) + protocol.ByteCount(aead.Overhead()),
-			PacketNumber:     hdr.PacketNumber, // echo the client's packet number
-			PacketNumberLen:  hdr.PacketNumberLen,
+			Length:           f.Length(version) + protocol.ByteCount(aead.Overhead()) + protocol.ByteCount(protocol.PacketNumberLen2),
 			Version:          version,
 		}
-		data, err := packUnencryptedPacket(aead, replyHdr, f, protocol.PerspectiveServer, s.logger)
+		data, err := packUnencryptedPacket(aead, replyHdr, pn, f, protocol.PerspectiveServer, s.logger)
 		if err != nil {
 			return nil, nil, err
 		}

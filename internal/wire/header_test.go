@@ -22,19 +22,17 @@ var _ = Describe("Header", func() {
 		It("parses an IETF draft Short Header, when the QUIC version supports TLS", func() {
 			buf := &bytes.Buffer{}
 			// use a Short Header, which isn't distinguishable from the gQUIC Public Header when looking at the type byte
-			err := (&Header{
+			h := &Header{
 				IsLongHeader:     false,
 				DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				SrcConnectionID:  protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				KeyPhase:         1,
-				PacketNumber:     0x42,
-				PacketNumberLen:  protocol.PacketNumberLen2,
-			}).writeHeader(buf)
+			}
+			err := h.writeHeader(buf, 1, protocol.PacketNumberLen1)
 			Expect(err).ToNot(HaveOccurred())
 			hdr, err := ParseHeaderSentByClient(bytes.NewReader(buf.Bytes()))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(hdr.KeyPhase).To(BeEquivalentTo(1))
-			Expect(hdr.PacketNumber).To(Equal(protocol.PacketNumber(0x42)))
 			Expect(hdr.IsPublicHeader).To(BeFalse())
 		})
 
@@ -45,17 +43,35 @@ var _ = Describe("Header", func() {
 				DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				SrcConnectionID:  protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				Type:             protocol.PacketType0RTT,
-				PacketNumber:     0x42,
-				PacketNumberLen:  protocol.PacketNumberLen2,
 				Version:          0x1234,
-			}).writeHeader(buf)
+			}).writeHeader(buf, 1, protocol.PacketNumberLen1)
 			Expect(err).ToNot(HaveOccurred())
-			hdr, err := ParseHeaderSentByClient(bytes.NewReader(buf.Bytes()))
+			r := bytes.NewReader(buf.Bytes())
+			hdr, err := ParseHeaderSentByClient(r)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(hdr.Type).To(Equal(protocol.PacketType0RTT))
-			Expect(hdr.PacketNumber).To(Equal(protocol.PacketNumber(0x42)))
 			Expect(hdr.IsPublicHeader).To(BeFalse())
 			Expect(hdr.Version).To(Equal(protocol.VersionNumber(0x1234)))
+		})
+
+		It("reads the packet number for an IETF draft header", func() {
+			buf := &bytes.Buffer{}
+			hdr := &Header{
+				IsLongHeader:     true,
+				DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
+				SrcConnectionID:  protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
+				Type:             protocol.PacketType0RTT,
+				Version:          0x1234,
+			}
+			err := hdr.writeHeader(buf, 0x1337, protocol.PacketNumberLen2)
+			Expect(err).ToNot(HaveOccurred())
+			r := bytes.NewReader(buf.Bytes())
+			_, err = ParseHeaderSentByClient(r)
+			Expect(err).ToNot(HaveOccurred())
+			pn, pnLen, err := ReadPacketNumber(r, buf.Bytes()[0], versionIETFHeader)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pn).To(Equal(protocol.PacketNumber(0x1337)))
+			Expect(pnLen).To(Equal(protocol.PacketNumberLen2))
 		})
 
 		It("doesn't mistake packets with a Short Header for Version Negotiation Packets", func() {
@@ -65,9 +81,7 @@ var _ = Describe("Header", func() {
 				IsLongHeader:     false,
 				DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				SrcConnectionID:  protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
-				PacketNumberLen:  protocol.PacketNumberLen1,
-				PacketNumber:     0x42,
-			}).writeHeader(buf)
+			}).writeHeader(buf, 1, protocol.PacketNumberLen1)
 			Expect(err).ToNot(HaveOccurred())
 			hdr, err := ParseHeaderSentByServer(bytes.NewReader(buf.Bytes()))
 			Expect(err).ToNot(HaveOccurred())
@@ -82,15 +96,12 @@ var _ = Describe("Header", func() {
 				Version:          versionPublicHeader,
 				DestConnectionID: connID,
 				SrcConnectionID:  connID,
-				PacketNumber:     0x1337,
-				PacketNumberLen:  protocol.PacketNumberLen4,
-			}).writePublicHeader(buf, protocol.PerspectiveClient, versionPublicHeader)
+			}).writePublicHeader(buf, 1, protocol.PacketNumberLen1, protocol.PerspectiveClient)
 			Expect(err).ToNot(HaveOccurred())
 			hdr, err := ParseHeaderSentByClient(bytes.NewReader(buf.Bytes()))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(hdr.DestConnectionID).To(Equal(connID))
 			Expect(hdr.SrcConnectionID).To(Equal(connID))
-			Expect(hdr.PacketNumber).To(Equal(protocol.PacketNumber(0x1337)))
 			Expect(hdr.Version).To(Equal(versionPublicHeader))
 			Expect(hdr.IsPublicHeader).To(BeTrue())
 		})
@@ -101,18 +112,33 @@ var _ = Describe("Header", func() {
 			err := (&Header{
 				DestConnectionID:     connID,
 				SrcConnectionID:      connID,
-				PacketNumber:         0x1337,
-				PacketNumberLen:      protocol.PacketNumberLen4,
 				DiversificationNonce: bytes.Repeat([]byte{'f'}, 32),
-			}).writePublicHeader(buf, protocol.PerspectiveServer, versionPublicHeader)
+			}).writePublicHeader(buf, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer)
 			Expect(err).ToNot(HaveOccurred())
 			hdr, err := ParseHeaderSentByServer(bytes.NewReader(buf.Bytes()))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(hdr.DestConnectionID).To(Equal(connID))
 			Expect(hdr.SrcConnectionID).To(Equal(connID))
-			Expect(hdr.PacketNumber).To(Equal(protocol.PacketNumber(0x1337)))
 			Expect(hdr.DiversificationNonce).To(HaveLen(32))
 			Expect(hdr.IsPublicHeader).To(BeTrue())
+		})
+
+		It("reads the packet number for a gQUIC Public Header", func() {
+			connID := protocol.ConnectionID{8, 7, 6, 5, 4, 3, 2, 1}
+			buf := bytes.NewBuffer(make([]byte, 0, 100))
+			hdr := &Header{
+				DestConnectionID: connID,
+				SrcConnectionID:  connID,
+			}
+			err := hdr.writePublicHeader(buf, 0x1337, protocol.PacketNumberLen2, protocol.PerspectiveServer)
+			Expect(err).ToNot(HaveOccurred())
+			r := bytes.NewReader(buf.Bytes())
+			_, err = ParseHeaderSentByServer(r)
+			Expect(err).ToNot(HaveOccurred())
+			pn, pnLen, err := ReadPacketNumber(r, buf.Bytes()[0], versionPublicHeader)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pn).To(Equal(protocol.PacketNumber(0x1337)))
+			Expect(pnLen).To(Equal(protocol.PacketNumberLen2))
 		})
 
 		It("errors when parsing the gQUIC header fails", func() {
@@ -122,9 +148,7 @@ var _ = Describe("Header", func() {
 				Version:          versionPublicHeader,
 				DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				SrcConnectionID:  protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
-				PacketNumber:     0x1337,
-				PacketNumberLen:  protocol.PacketNumberLen2,
-			}).writePublicHeader(buf, protocol.PerspectiveClient, versionPublicHeader)
+			}).writePublicHeader(buf, 1, protocol.PacketNumberLen1, protocol.PerspectiveClient)
 			Expect(err).ToNot(HaveOccurred())
 			_, err = ParseHeaderSentByClient(bytes.NewReader(buf.Bytes()[0:12]))
 			Expect(err).To(MatchError(io.EOF))
@@ -178,14 +202,17 @@ var _ = Describe("Header", func() {
 			hdr := &Header{
 				DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				SrcConnectionID:  protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
-				PacketNumber:     0x42,
-				PacketNumberLen:  protocol.PacketNumberLen2,
 			}
-			err := hdr.Write(buf, protocol.PerspectiveServer, versionPublicHeader)
+			err := hdr.Write(buf, 0x1337, protocol.PacketNumberLen2, protocol.PerspectiveServer, versionPublicHeader)
 			Expect(err).ToNot(HaveOccurred())
-			_, err = parsePublicHeader(bytes.NewReader(buf.Bytes()), protocol.PerspectiveServer)
+			r := bytes.NewReader(buf.Bytes())
+			_, err = parsePublicHeader(r, protocol.PerspectiveServer)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(hdr.IsPublicHeader).To(BeTrue())
+			pn, pnLen, err := readPublicHeaderPacketNumber(r, buf.Bytes()[0])
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pn).To(Equal(protocol.PacketNumber(0x1337)))
+			Expect(pnLen).To(Equal(protocol.PacketNumberLen2))
 		})
 
 		It("writes a IETF draft header", func() {
@@ -194,15 +221,18 @@ var _ = Describe("Header", func() {
 				Type:             protocol.PacketTypeHandshake,
 				DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				SrcConnectionID:  protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
-				PacketNumber:     0x42,
-				PacketNumberLen:  protocol.PacketNumberLen2,
 				KeyPhase:         1,
 			}
-			err := hdr.Write(buf, protocol.PerspectiveServer, versionIETFHeader)
+			err := hdr.Write(buf, 0x1337, protocol.PacketNumberLen2, protocol.PerspectiveServer, versionIETFHeader)
 			Expect(err).ToNot(HaveOccurred())
-			_, err = ParseHeaderSentByServer(bytes.NewReader(buf.Bytes()))
+			r := bytes.NewReader(buf.Bytes())
+			_, err = ParseHeaderSentByServer(r)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(hdr.IsPublicHeader).To(BeFalse())
+			pn, pnLen, err := readPacketNumber(r, 0)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pn).To(Equal(protocol.PacketNumber(0x1337)))
+			Expect(pnLen).To(Equal(protocol.PacketNumberLen2))
 		})
 	})
 
@@ -212,18 +242,16 @@ var _ = Describe("Header", func() {
 			hdr := &Header{
 				DestConnectionID:     protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				SrcConnectionID:      protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
-				PacketNumber:         0x42,
-				PacketNumberLen:      protocol.PacketNumberLen2,
 				DiversificationNonce: bytes.Repeat([]byte{'f'}, 32),
 			}
-			err := hdr.Write(buf, protocol.PerspectiveServer, versionPublicHeader)
+			pnLen := protocol.PacketNumberLen4
+			err := hdr.Write(buf, 1, pnLen, protocol.PerspectiveServer, versionPublicHeader)
 			Expect(err).ToNot(HaveOccurred())
-			publicHeaderLen, err := hdr.getPublicHeaderLength(protocol.PerspectiveServer)
+			publicHeaderLen, err := hdr.getPublicHeaderLength(pnLen, protocol.PerspectiveServer)
 			Expect(err).ToNot(HaveOccurred())
-			ietfHeaderLen, err := hdr.getHeaderLength()
-			Expect(err).ToNot(HaveOccurred())
+			ietfHeaderLen := hdr.getHeaderLength(pnLen)
 			Expect(publicHeaderLen).ToNot(Equal(ietfHeaderLen)) // make sure we can distinguish between the two header types
-			len, err := hdr.GetLength(protocol.PerspectiveServer, versionPublicHeader)
+			len, err := hdr.GetLength(pnLen, protocol.PerspectiveServer, versionPublicHeader)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(len).To(Equal(publicHeaderLen))
 		})
@@ -234,18 +262,17 @@ var _ = Describe("Header", func() {
 				IsLongHeader:     true,
 				DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				SrcConnectionID:  protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
-				PacketNumber:     0x42,
-				PacketNumberLen:  protocol.PacketNumberLen2,
 				KeyPhase:         1,
 			}
-			err := hdr.Write(buf, protocol.PerspectiveServer, versionIETFHeader)
+			pnLen := protocol.PacketNumberLen4
+			err := hdr.Write(buf, 1, pnLen, protocol.PerspectiveServer, versionIETFHeader)
 			Expect(err).ToNot(HaveOccurred())
-			publicHeaderLen, err := hdr.getPublicHeaderLength(protocol.PerspectiveServer)
+			publicHeaderLen, err := hdr.getPublicHeaderLength(pnLen, protocol.PerspectiveServer)
 			Expect(err).ToNot(HaveOccurred())
-			ietfHeaderLen, err := hdr.getHeaderLength()
+			ietfHeaderLen := hdr.getHeaderLength(pnLen)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(publicHeaderLen).ToNot(Equal(ietfHeaderLen)) // make sure we can distinguish between the two header types
-			len, err := hdr.GetLength(protocol.PerspectiveServer, versionIETFHeader)
+			len, err := hdr.GetLength(pnLen, protocol.PerspectiveServer, versionIETFHeader)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(len).To(Equal(ietfHeaderLen))
 		})
