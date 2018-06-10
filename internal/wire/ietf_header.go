@@ -136,12 +136,11 @@ func (h *Header) writeShortHeader(b *bytes.Buffer, pn protocol.PacketNumber, pnL
 	return utils.WriteVarIntPacketNumber(b, pn, pnLen)
 }
 
-func (h *Header) getHeaderLength(pnLen protocol.PacketNumberLen) protocol.ByteCount {
+func (h *Header) getHeaderLength() protocol.ByteCount {
 	if h.IsLongHeader {
-		return 1 /* type byte */ + 4 /* version */ + 1 /* conn id len byte */ + protocol.ByteCount(h.DestConnectionID.Len()+h.SrcConnectionID.Len()) + utils.VarIntLen(uint64(h.Length)) + protocol.ByteCount(pnLen)
+		return 1 /* type byte */ + 4 /* version */ + 1 /* conn id len byte */ + protocol.ByteCount(h.DestConnectionID.Len()+h.SrcConnectionID.Len()) + utils.VarIntLen(uint64(h.Length))
 	}
-	length := protocol.ByteCount(1 /* type byte */ +h.DestConnectionID.Len()) + protocol.ByteCount(pnLen)
-	return length
+	return protocol.ByteCount(1 /* type byte */ + h.DestConnectionID.Len())
 }
 
 func (h *Header) logHeader(logger utils.Logger) {

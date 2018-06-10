@@ -186,7 +186,7 @@ func parsePublicHeader(b *bytes.Reader, packetSentBy protocol.Perspective) (*Hea
 
 // getPublicHeaderLength gets the length of the publicHeader in bytes.
 // It can only be called for regular packets.
-func (h *Header) getPublicHeaderLength(pnLen protocol.PacketNumberLen, pers protocol.Perspective) protocol.ByteCount {
+func (h *Header) getPublicHeaderLength(pers protocol.Perspective) protocol.ByteCount {
 	length := protocol.ByteCount(1) // 1 byte for public flags
 	if !h.OmitConnectionID {
 		length += 8 // 8 bytes for the connection ID
@@ -196,7 +196,6 @@ func (h *Header) getPublicHeaderLength(pnLen protocol.PacketNumberLen, pers prot
 		length += 4
 	}
 	length += protocol.ByteCount(len(h.DiversificationNonce))
-	length += protocol.ByteCount(pnLen)
 	return length
 }
 

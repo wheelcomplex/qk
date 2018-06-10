@@ -317,8 +317,8 @@ var _ = Describe("Public Header", func() {
 					VersionFlag:      true,
 					Version:          versionBigEndian,
 				}
-				length := hdr.getPublicHeaderLength(protocol.PacketNumberLen2, protocol.PerspectiveClient)
-				Expect(length).To(Equal(protocol.ByteCount(1 + 4 + 2))) // 1 byte public flag, 4 version number, 2 packet number
+				length := hdr.getPublicHeaderLength(protocol.PerspectiveClient)
+				Expect(length).To(Equal(protocol.ByteCount(1 + 4))) // 1 byte public flag, 4 version number
 			})
 
 			It("gets the length of a packet with longest packet number length and omitted connectionID", func() {
@@ -327,7 +327,7 @@ var _ = Describe("Public Header", func() {
 					SrcConnectionID:  connID,
 					OmitConnectionID: true,
 				}
-				length := hdr.getPublicHeaderLength(0, protocol.PerspectiveServer)
+				length := hdr.getPublicHeaderLength(protocol.PerspectiveServer)
 				Expect(length).To(Equal(protocol.ByteCount(1))) // public flag
 			})
 
@@ -335,8 +335,8 @@ var _ = Describe("Public Header", func() {
 				hdr := Header{
 					DiversificationNonce: []byte("foo"),
 				}
-				length := hdr.getPublicHeaderLength(protocol.PacketNumberLen4, protocol.PerspectiveServer)
-				Expect(length).To(Equal(protocol.ByteCount(1 + 8 + 3 + 4))) // 1 byte public flag, 8 byte connectionID, 3 byte DiversificationNonce, 4 packet number
+				length := hdr.getPublicHeaderLength(protocol.PerspectiveServer)
+				Expect(length).To(Equal(protocol.ByteCount(1 + 8 + 3))) // 1 byte public flag, 8 byte connectionID, 3 byte DiversificationNonce,
 			})
 		})
 	})

@@ -359,11 +359,11 @@ var _ = Describe("IETF QUIC Header", func() {
 				DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				SrcConnectionID:  protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 			}
-			expectedLen := 1 /* type byte */ + 4 /* version */ + 1 /* conn ID len */ + 8 /* dest conn id */ + 8 /* src conn id */ + 1 /* length */ + 2 /* packet number */
-			Expect(h.getHeaderLength(protocol.PacketNumberLen2)).To(BeEquivalentTo(expectedLen))
+			expectedLen := 1 /* type byte */ + 4 /* version */ + 1 /* conn ID len */ + 8 /* dest conn id */ + 8 /* src conn id */ + 1 /* length */
+			Expect(h.getHeaderLength()).To(BeEquivalentTo(expectedLen))
 			err := h.writeHeader(buf, 1, protocol.PacketNumberLen2)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(buf.Len()).To(Equal(expectedLen))
+			Expect(buf.Len()).To(Equal(expectedLen + 2))
 		})
 
 		It("has the right length for the long header, for a long Length field", func() {
@@ -373,29 +373,29 @@ var _ = Describe("IETF QUIC Header", func() {
 				DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				SrcConnectionID:  protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 			}
-			expectedLen := 1 /* type byte */ + 4 /* version */ + 1 /* conn ID len */ + 8 /* dest conn id */ + 8 /* src conn id */ + 2 /* length */ + 4 /* packet number */
-			Expect(h.getHeaderLength(protocol.PacketNumberLen4)).To(BeEquivalentTo(expectedLen))
+			expectedLen := 1 /* type byte */ + 4 /* version */ + 1 /* conn ID len */ + 8 /* dest conn id */ + 8 /* src conn id */ + 2 /* length */
+			Expect(h.getHeaderLength()).To(BeEquivalentTo(expectedLen))
 			err := h.writeHeader(buf, 1, protocol.PacketNumberLen4)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(buf.Len()).To(Equal(expectedLen))
+			Expect(buf.Len()).To(Equal(expectedLen + 4))
 		})
 
 		It("has the right length for a short header containing a connection ID", func() {
 			h := &Header{DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8}}
-			expectedLen := 1 + 8 + 4
-			Expect(h.getHeaderLength(protocol.PacketNumberLen4)).To(BeEquivalentTo(expectedLen))
+			expectedLen := 1 + 8
+			Expect(h.getHeaderLength()).To(BeEquivalentTo(expectedLen))
 			err := h.writeHeader(buf, 1, protocol.PacketNumberLen4)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(buf.Len()).To(Equal(expectedLen))
+			Expect(buf.Len()).To(Equal(expectedLen + 4))
 		})
 
 		It("has the right length for a short header without a connection ID", func() {
 			h := &Header{OmitConnectionID: true}
-			expectedLen := 1 + 2
-			Expect(h.getHeaderLength(protocol.PacketNumberLen2)).To(BeEquivalentTo(expectedLen))
+			expectedLen := 1
+			Expect(h.getHeaderLength()).To(BeEquivalentTo(expectedLen))
 			err := h.writeHeader(buf, 42, protocol.PacketNumberLen2)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(buf.Len()).To(Equal(expectedLen))
+			Expect(buf.Len()).To(Equal(expectedLen + 2))
 		})
 	})
 
