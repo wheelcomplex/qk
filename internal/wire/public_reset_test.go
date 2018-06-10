@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/lucas-clemente/quic-go/internal/handshake"
 	"github.com/lucas-clemente/quic-go/internal/protocol"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -49,46 +48,46 @@ var _ = Describe("public reset", func() {
 		})
 
 		It("rejects packets with the wrong tag", func() {
-			handshake.HandshakeMessage{Tag: handshake.TagREJ, Data: nil}.Write(b)
+			HandshakeMessage{Tag: protocol.TagREJ, Data: nil}.Write(b)
 			_, err := ParsePublicReset(bytes.NewReader(b.Bytes()))
 			Expect(err).To(MatchError("wrong public reset tag"))
 		})
 
 		It("rejects packets missing the nonce", func() {
-			data := map[handshake.Tag][]byte{
-				handshake.TagRSEQ: {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0x13, 0x37},
+			data := map[protocol.Tag][]byte{
+				protocol.TagRSEQ: {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0x13, 0x37},
 			}
-			handshake.HandshakeMessage{Tag: handshake.TagPRST, Data: data}.Write(b)
+			HandshakeMessage{Tag: protocol.TagPRST, Data: data}.Write(b)
 			_, err := ParsePublicReset(bytes.NewReader(b.Bytes()))
 			Expect(err).To(MatchError("RNON missing"))
 		})
 
 		It("rejects packets with a wrong length nonce", func() {
-			data := map[handshake.Tag][]byte{
-				handshake.TagRSEQ: {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0x13, 0x37},
-				handshake.TagRNON: {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0x13},
+			data := map[protocol.Tag][]byte{
+				protocol.TagRSEQ: {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0x13, 0x37},
+				protocol.TagRNON: {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0x13},
 			}
-			handshake.HandshakeMessage{Tag: handshake.TagPRST, Data: data}.Write(b)
+			HandshakeMessage{Tag: protocol.TagPRST, Data: data}.Write(b)
 			_, err := ParsePublicReset(bytes.NewReader(b.Bytes()))
 			Expect(err).To(MatchError("invalid RNON tag"))
 		})
 
 		It("accepts packets missing the rejected packet number", func() {
-			data := map[handshake.Tag][]byte{
-				handshake.TagRNON: {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0x13, 0x37},
+			data := map[protocol.Tag][]byte{
+				protocol.TagRNON: {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0x13, 0x37},
 			}
-			handshake.HandshakeMessage{Tag: handshake.TagPRST, Data: data}.Write(b)
+			HandshakeMessage{Tag: protocol.TagPRST, Data: data}.Write(b)
 			pr, err := ParsePublicReset(bytes.NewReader(b.Bytes()))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pr.Nonce).To(Equal(uint64(0x3713fecaefbeadde)))
 		})
 
 		It("rejects packets with a wrong length rejected packet number", func() {
-			data := map[handshake.Tag][]byte{
-				handshake.TagRSEQ: {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0x13},
-				handshake.TagRNON: {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0x13, 0x37},
+			data := map[protocol.Tag][]byte{
+				protocol.TagRSEQ: {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0x13},
+				protocol.TagRNON: {0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0x13, 0x37},
 			}
-			handshake.HandshakeMessage{Tag: handshake.TagPRST, Data: data}.Write(b)
+			HandshakeMessage{Tag: protocol.TagPRST, Data: data}.Write(b)
 			_, err := ParsePublicReset(bytes.NewReader(b.Bytes()))
 			Expect(err).To(MatchError("invalid RSEQ tag"))
 		})

@@ -12,11 +12,11 @@ var _ = Describe("Transport Parameters", func() {
 	Context("for gQUIC", func() {
 		Context("parsing", func() {
 			It("sets all values", func() {
-				values := map[Tag][]byte{
-					TagSFCW: {0xad, 0xfb, 0xca, 0xde},
-					TagCFCW: {0xef, 0xbe, 0xad, 0xde},
-					TagICSL: {0x0d, 0xf0, 0xad, 0xba},
-					TagMIDS: {0xff, 0x10, 0x00, 0xc0},
+				values := map[protocol.Tag][]byte{
+					protocol.TagSFCW: {0xad, 0xfb, 0xca, 0xde},
+					protocol.TagCFCW: {0xef, 0xbe, 0xad, 0xde},
+					protocol.TagICSL: {0x0d, 0xf0, 0xad, 0xba},
+					protocol.TagMIDS: {0xff, 0x10, 0x00, 0xc0},
 				}
 				params, err := readHelloMap(values)
 				Expect(err).ToNot(HaveOccurred())
@@ -28,7 +28,7 @@ var _ = Describe("Transport Parameters", func() {
 			})
 
 			It("reads if the connection ID should be omitted", func() {
-				values := map[Tag][]byte{TagTCID: {0, 0, 0, 0}}
+				values := map[protocol.Tag][]byte{protocol.TagTCID: {0, 0, 0, 0}}
 				params, err := readHelloMap(values)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(params.OmitConnectionID).To(BeTrue())
@@ -37,8 +37,8 @@ var _ = Describe("Transport Parameters", func() {
 			It("doesn't allow idle timeouts below the minimum remote idle timeout", func() {
 				t := 2 * time.Second
 				Expect(t).To(BeNumerically("<", protocol.MinRemoteIdleTimeout))
-				values := map[Tag][]byte{
-					TagICSL: {uint8(t.Seconds()), 0, 0, 0},
+				values := map[protocol.Tag][]byte{
+					protocol.TagICSL: {uint8(t.Seconds()), 0, 0, 0},
 				}
 				params, err := readHelloMap(values)
 				Expect(err).ToNot(HaveOccurred())
@@ -46,31 +46,31 @@ var _ = Describe("Transport Parameters", func() {
 			})
 
 			It("errors when given an invalid SFCW value", func() {
-				values := map[Tag][]byte{TagSFCW: {2, 0, 0}} // 1 byte too short
+				values := map[protocol.Tag][]byte{protocol.TagSFCW: {2, 0, 0}} // 1 byte too short
 				_, err := readHelloMap(values)
 				Expect(err).To(MatchError(errMalformedTag))
 			})
 
 			It("errors when given an invalid CFCW value", func() {
-				values := map[Tag][]byte{TagCFCW: {2, 0, 0}} // 1 byte too short
+				values := map[protocol.Tag][]byte{protocol.TagCFCW: {2, 0, 0}} // 1 byte too short
 				_, err := readHelloMap(values)
 				Expect(err).To(MatchError(errMalformedTag))
 			})
 
 			It("errors when given an invalid TCID value", func() {
-				values := map[Tag][]byte{TagTCID: {2, 0, 0}} // 1 byte too short
+				values := map[protocol.Tag][]byte{protocol.TagTCID: {2, 0, 0}} // 1 byte too short
 				_, err := readHelloMap(values)
 				Expect(err).To(MatchError(errMalformedTag))
 			})
 
 			It("errors when given an invalid ICSL value", func() {
-				values := map[Tag][]byte{TagICSL: {2, 0, 0}} // 1 byte too short
+				values := map[protocol.Tag][]byte{protocol.TagICSL: {2, 0, 0}} // 1 byte too short
 				_, err := readHelloMap(values)
 				Expect(err).To(MatchError(errMalformedTag))
 			})
 
 			It("errors when given an invalid MIDS value", func() {
-				values := map[Tag][]byte{TagMIDS: {2, 0, 0}} // 1 byte too short
+				values := map[protocol.Tag][]byte{protocol.TagMIDS: {2, 0, 0}} // 1 byte too short
 				_, err := readHelloMap(values)
 				Expect(err).To(MatchError(errMalformedTag))
 			})
@@ -86,17 +86,17 @@ var _ = Describe("Transport Parameters", func() {
 				}
 				entryMap := params.getHelloMap()
 				Expect(entryMap).To(HaveLen(4))
-				Expect(entryMap).ToNot(HaveKey(TagTCID))
-				Expect(entryMap).To(HaveKeyWithValue(TagSFCW, []byte{0xef, 0xbe, 0xad, 0xde}))
-				Expect(entryMap).To(HaveKeyWithValue(TagCFCW, []byte{0xad, 0xfb, 0xca, 0xde}))
-				Expect(entryMap).To(HaveKeyWithValue(TagICSL, []byte{0xad, 0xaa, 0xaa, 0xba}))
-				Expect(entryMap).To(HaveKeyWithValue(TagMIDS, []byte{0x37, 0x13, 0, 0}))
+				Expect(entryMap).ToNot(HaveKey(protocol.TagTCID))
+				Expect(entryMap).To(HaveKeyWithValue(protocol.TagSFCW, []byte{0xef, 0xbe, 0xad, 0xde}))
+				Expect(entryMap).To(HaveKeyWithValue(protocol.TagCFCW, []byte{0xad, 0xfb, 0xca, 0xde}))
+				Expect(entryMap).To(HaveKeyWithValue(protocol.TagICSL, []byte{0xad, 0xaa, 0xaa, 0xba}))
+				Expect(entryMap).To(HaveKeyWithValue(protocol.TagMIDS, []byte{0x37, 0x13, 0, 0}))
 			})
 
 			It("requests omission of the connection ID", func() {
 				params := &TransportParameters{OmitConnectionID: true}
 				entryMap := params.getHelloMap()
-				Expect(entryMap).To(HaveKeyWithValue(TagTCID, []byte{0, 0, 0, 0}))
+				Expect(entryMap).To(HaveKeyWithValue(protocol.TagTCID, []byte{0, 0, 0, 0}))
 			})
 		})
 	})

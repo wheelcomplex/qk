@@ -1,4 +1,4 @@
-package handshake
+package wire
 
 import (
 	"bytes"
@@ -14,8 +14,8 @@ import (
 
 // A HandshakeMessage is a handshake message
 type HandshakeMessage struct {
-	Tag  Tag
-	Data map[Tag][]byte
+	Tag  protocol.Tag
+	Data map[protocol.Tag][]byte
 }
 
 var _ fmt.Stringer = &HandshakeMessage{}
@@ -27,7 +27,7 @@ func ParseHandshakeMessage(r io.Reader) (HandshakeMessage, error) {
 	if _, err := io.ReadFull(r, slice4); err != nil {
 		return HandshakeMessage{}, err
 	}
-	messageTag := Tag(binary.LittleEndian.Uint32(slice4))
+	messageTag := protocol.Tag(binary.LittleEndian.Uint32(slice4))
 
 	if _, err := io.ReadFull(r, slice4); err != nil {
 		return HandshakeMessage{}, err
@@ -43,11 +43,11 @@ func ParseHandshakeMessage(r io.Reader) (HandshakeMessage, error) {
 		return HandshakeMessage{}, err
 	}
 
-	resultMap := map[Tag][]byte{}
+	resultMap := map[protocol.Tag][]byte{}
 
 	var dataStart uint32
 	for indexPos := 0; indexPos < int(nPairs)*8; indexPos += 8 {
-		tag := Tag(binary.LittleEndian.Uint32(index[indexPos : indexPos+4]))
+		tag := protocol.Tag(binary.LittleEndian.Uint32(index[indexPos : indexPos+4]))
 		dataEnd := binary.LittleEndian.Uint32(index[indexPos+4 : indexPos+8])
 
 		dataLen := dataEnd - dataStart
@@ -95,8 +95,8 @@ func (h HandshakeMessage) Write(b *bytes.Buffer) {
 	copy(b.Bytes()[indexStart:], indexData)
 }
 
-func (h *HandshakeMessage) getTagsSorted() []Tag {
-	tags := make([]Tag, len(h.Data))
+func (h *HandshakeMessage) getTagsSorted() []protocol.Tag {
+	tags := make([]protocol.Tag, len(h.Data))
 	i := 0
 	for t := range h.Data {
 		tags[i] = t
@@ -112,7 +112,7 @@ func (h HandshakeMessage) String() string {
 	var pad string
 	res := tagToString(h.Tag) + ":\n"
 	for _, tag := range h.getTagsSorted() {
-		if tag == TagPAD {
+		if tag == protocol.TagPAD {
 			pad = fmt.Sprintf("\t%s: (%d bytes)\n", tagToString(tag), len(h.Data[tag]))
 		} else {
 			res += fmt.Sprintf("\t%s: %#v\n", tagToString(tag), string(h.Data[tag]))
@@ -125,7 +125,7 @@ func (h HandshakeMessage) String() string {
 	return res
 }
 
-func tagToString(tag Tag) string {
+func tagToString(tag protocol.Tag) string {
 	b := make([]byte, 4)
 	binary.LittleEndian.PutUint32(b, uint32(tag))
 	for i := range b {

@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/lucas-clemente/quic-go/internal/crypto"
+	"github.com/lucas-clemente/quic-go/internal/protocol"
 	"github.com/lucas-clemente/quic-go/internal/utils"
+	"github.com/lucas-clemente/quic-go/internal/wire"
 	"github.com/lucas-clemente/quic-go/qerr"
 )
 
@@ -28,11 +30,11 @@ var (
 
 // parseServerConfig parses a server config
 func parseServerConfig(data []byte) (*serverConfigClient, error) {
-	message, err := ParseHandshakeMessage(bytes.NewReader(data))
+	message, err := wire.ParseHandshakeMessage(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
-	if message.Tag != TagSCFG {
+	if message.Tag != protocol.TagSCFG {
 		return nil, errMessageNotServerConfig
 	}
 
@@ -45,9 +47,9 @@ func parseServerConfig(data []byte) (*serverConfigClient, error) {
 	return scfg, nil
 }
 
-func (s *serverConfigClient) parseValues(tagMap map[Tag][]byte) error {
+func (s *serverConfigClient) parseValues(tagMap map[protocol.Tag][]byte) error {
 	// SCID
-	scfgID, ok := tagMap[TagSCID]
+	scfgID, ok := tagMap[protocol.TagSCID]
 	if !ok {
 		return qerr.Error(qerr.CryptoMessageParameterNotFound, "SCID")
 	}
@@ -58,7 +60,7 @@ func (s *serverConfigClient) parseValues(tagMap map[Tag][]byte) error {
 
 	// KEXS
 	// TODO: setup Key Exchange
-	kexs, ok := tagMap[TagKEXS]
+	kexs, ok := tagMap[protocol.TagKEXS]
 	if !ok {
 		return qerr.Error(qerr.CryptoMessageParameterNotFound, "KEXS")
 	}
@@ -78,7 +80,7 @@ func (s *serverConfigClient) parseValues(tagMap map[Tag][]byte) error {
 	}
 
 	// AEAD
-	aead, ok := tagMap[TagAEAD]
+	aead, ok := tagMap[protocol.TagAEAD]
 	if !ok {
 		return qerr.Error(qerr.CryptoMessageParameterNotFound, "AEAD")
 	}
@@ -97,7 +99,7 @@ func (s *serverConfigClient) parseValues(tagMap map[Tag][]byte) error {
 	}
 
 	// PUBS
-	pubs, ok := tagMap[TagPUBS]
+	pubs, ok := tagMap[protocol.TagPUBS]
 	if !ok {
 		return qerr.Error(qerr.CryptoMessageParameterNotFound, "PUBS")
 	}
@@ -148,7 +150,7 @@ func (s *serverConfigClient) parseValues(tagMap map[Tag][]byte) error {
 	}
 
 	// OBIT
-	obit, ok := tagMap[TagOBIT]
+	obit, ok := tagMap[protocol.TagOBIT]
 	if !ok {
 		return qerr.Error(qerr.CryptoMessageParameterNotFound, "OBIT")
 	}
@@ -158,7 +160,7 @@ func (s *serverConfigClient) parseValues(tagMap map[Tag][]byte) error {
 	s.obit = obit
 
 	// EXPY
-	expy, ok := tagMap[TagEXPY]
+	expy, ok := tagMap[protocol.TagEXPY]
 	if !ok {
 		return qerr.Error(qerr.CryptoMessageParameterNotFound, "EXPY")
 	}

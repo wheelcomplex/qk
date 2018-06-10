@@ -13,6 +13,7 @@ import (
 	"github.com/lucas-clemente/quic-go/internal/protocol"
 	"github.com/lucas-clemente/quic-go/internal/testdata"
 	"github.com/lucas-clemente/quic-go/internal/utils"
+	"github.com/lucas-clemente/quic-go/internal/wire"
 	"github.com/lucas-clemente/quic-go/qerr"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -88,15 +89,15 @@ var _ = Describe("Client Crypto Setup", func() {
 		certManager             *mockCertManager
 		stream                  *mockStream
 		keyDerivationCalledWith *keyDerivationValues
-		shloMap                 map[Tag][]byte
+		shloMap                 map[protocol.Tag][]byte
 		handshakeEvent          chan struct{}
 		paramsChan              chan TransportParameters
 	)
 
 	BeforeEach(func() {
-		shloMap = map[Tag][]byte{
-			TagPUBS: {0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f},
-			TagVER:  {},
+		shloMap = map[protocol.Tag][]byte{
+			protocol.TagPUBS: {0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f},
+			protocol.TagVER:  {},
 		}
 		keyDerivation := func(forwardSecure bool, sharedSecret, nonces []byte, connID protocol.ConnectionID, chlo []byte, scfg []byte, cert []byte, divNonce []byte, pers protocol.Perspective) (crypto.AEAD, error) {
 			keyDerivationCalledWith = &keyDerivationValues{
@@ -141,14 +142,14 @@ var _ = Describe("Client Crypto Setup", func() {
 	})
 
 	Context("Reading REJ", func() {
-		var tagMap map[Tag][]byte
+		var tagMap map[protocol.Tag][]byte
 
 		BeforeEach(func() {
-			tagMap = make(map[Tag][]byte)
+			tagMap = make(map[protocol.Tag][]byte)
 		})
 
 		It("rejects handshake messages with the wrong message tag", func() {
-			HandshakeMessage{Tag: TagCHLO, Data: tagMap}.Write(&stream.dataToRead)
+			wire.HandshakeMessage{Tag: protocol.TagCHLO, Data: tagMap}.Write(&stream.dataToRead)
 			err := cs.HandleCryptoStream()
 			Expect(err).To(MatchError(qerr.InvalidCryptoMessageType))
 		})
@@ -162,8 +163,8 @@ var _ = Describe("Client Crypto Setup", func() {
 
 		It("passes the message on for parsing, and reads the source address token", func() {
 			stk := []byte("foobar")
-			tagMap[TagSTK] = stk
-			HandshakeMessage{Tag: TagREJ, Data: tagMap}.Write(&stream.dataToRead)
+			tagMap[protocol.TagSTK] = stk
+			wire.HandshakeMessage{Tag: protocol.TagREJ, Data: tagMap}.Write(&stream.dataToRead)
 			done := make(chan struct{})
 			go func() {
 				defer GinkgoRecover()
@@ -179,7 +180,7 @@ var _ = Describe("Client Crypto Setup", func() {
 
 		It("saves the proof", func() {
 			proof := []byte("signature for the server config")
-			tagMap[TagPROF] = proof
+			tagMap[protocol.TagPROF] = proof
 			err := cs.handleREJMessage(tagMap)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(cs.proof).To(Equal(proof))
@@ -191,7 +192,7 @@ var _ = Describe("Client Crypto Setup", func() {
 			err := cs.handleREJMessage(tagMap)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(cs.chloForSignature).To(BeEmpty())
-			tagMap[TagPROF] = []byte("signature")
+			tagMap[protocol.TagPROF] = []byte("signature")
 			err = cs.handleREJMessage(tagMap)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(cs.chloForSignature).To(Equal(chlo))
@@ -199,7 +200,7 @@ var _ = Describe("Client Crypto Setup", func() {
 
 		It("saves the server nonce", func() {
 			nonc := []byte("servernonce")
-			tagMap[TagSNO] = nonc
+			tagMap[protocol.TagSNO] = nonc
 			err := cs.handleREJMessage(tagMap)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(cs.sno).To(Equal(nonc))
@@ -230,9 +231,9 @@ var _ = Describe("Client Crypto Setup", func() {
 			It("returns the right error when detecting a downgrade attack", func() {
 				cs.negotiatedVersions = []protocol.VersionNumber{protocol.VersionWhatever}
 				cs.receivedSecurePacket = true
-				_, err := cs.handleSHLOMessage(map[Tag][]byte{
-					TagPUBS: {0},
-					TagVER:  {0, 1},
+				_, err := cs.handleSHLOMessage(map[protocol.Tag][]byte{
+					protocol.TagPUBS: {0},
+					protocol.TagVER:  {0, 1},
 				})
 				Expect(err).To(MatchError(qerr.Error(qerr.VersionNegotiationMismatch, "Downgrade attack detected")))
 			})
@@ -244,14 +245,14 @@ var _ = Describe("Client Crypto Setup", func() {
 			})
 
 			It("passes the certificates to the CertManager", func() {
-				tagMap[TagCERT] = []byte("cert")
+				tagMap[protocol.TagCERT] = []byte("cert")
 				err := cs.handleREJMessage(tagMap)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(certManager.setDataCalledWith).To(Equal(tagMap[TagCERT]))
+				Expect(certManager.setDataCalledWith).To(Equal(tagMap[protocol.TagCERT]))
 			})
 
 			It("returns an InvalidCryptoMessageParameter error if it can't parse the cert chain", func() {
-				tagMap[TagCERT] = []byte("cert")
+				tagMap[protocol.TagCERT] = []byte("cert")
 				certManager.setDataError = errors.New("can't parse")
 				err := cs.handleREJMessage(tagMap)
 				Expect(err).To(MatchError(qerr.Error(qerr.InvalidCryptoMessageParameter, "Certificate data invalid")))
@@ -259,7 +260,7 @@ var _ = Describe("Client Crypto Setup", func() {
 
 			Context("verifying the certificate chain", func() {
 				It("returns a ProofInvalid error if the certificate chain is not valid", func() {
-					tagMap[TagCERT] = []byte("cert")
+					tagMap[protocol.TagCERT] = []byte("cert")
 					certManager.verifyError = errors.New("invalid")
 					err := cs.handleREJMessage(tagMap)
 					Expect(err).To(MatchError(qerr.ProofInvalid))
@@ -267,7 +268,7 @@ var _ = Describe("Client Crypto Setup", func() {
 
 				It("verifies the certificate", func() {
 					certManager.verifyServerProofResult = true
-					tagMap[TagCERT] = []byte("cert")
+					tagMap[protocol.TagCERT] = []byte("cert")
 					err := cs.handleREJMessage(tagMap)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(certManager.verifyCalled).To(BeTrue())
@@ -276,8 +277,8 @@ var _ = Describe("Client Crypto Setup", func() {
 
 			Context("verifying the signature", func() {
 				BeforeEach(func() {
-					tagMap[TagCERT] = []byte("cert")
-					tagMap[TagPROF] = []byte("proof")
+					tagMap[protocol.TagCERT] = []byte("cert")
+					tagMap[protocol.TagPROF] = []byte("proof")
 					certManager.leafCert = []byte("leafcert")
 				})
 
@@ -296,7 +297,7 @@ var _ = Describe("Client Crypto Setup", func() {
 				})
 
 				It("doesn't try to verify the signature if the certificate is missing", func() {
-					delete(tagMap, TagCERT)
+					delete(tagMap, protocol.TagCERT)
 					certManager.leafCert = nil
 					err := cs.handleREJMessage(tagMap)
 					Expect(err).ToNot(HaveOccurred())
@@ -311,7 +312,7 @@ var _ = Describe("Client Crypto Setup", func() {
 				})
 
 				It("doesn't try to verify the signature if the signature is missing", func() {
-					delete(tagMap, TagPROF)
+					delete(tagMap, protocol.TagPROF)
 					err := cs.handleREJMessage(tagMap)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(certManager.verifyServerProofCalled).To(BeFalse())
@@ -323,21 +324,21 @@ var _ = Describe("Client Crypto Setup", func() {
 			It("reads a server config", func() {
 				b := &bytes.Buffer{}
 				scfg := getDefaultServerConfigClient()
-				HandshakeMessage{Tag: TagSCFG, Data: scfg}.Write(b)
-				tagMap[TagSCFG] = b.Bytes()
+				wire.HandshakeMessage{Tag: protocol.TagSCFG, Data: scfg}.Write(b)
+				tagMap[protocol.TagSCFG] = b.Bytes()
 				err := cs.handleREJMessage(tagMap)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(cs.serverConfig).ToNot(BeNil())
-				Expect(cs.serverConfig.ID).To(Equal(scfg[TagSCID]))
+				Expect(cs.serverConfig.ID).To(Equal(scfg[protocol.TagSCID]))
 			})
 
 			It("rejects expired server configs", func() {
 				b := &bytes.Buffer{}
 				scfg := getDefaultServerConfigClient()
-				scfg[TagEXPY] = []byte{0x80, 0x54, 0x72, 0x4F, 0, 0, 0, 0} // 2012-03-28
-				HandshakeMessage{Tag: TagSCFG, Data: scfg}.Write(b)
-				tagMap[TagSCFG] = b.Bytes()
-				// make sure we actually set TagEXPY correct
+				scfg[protocol.TagEXPY] = []byte{0x80, 0x54, 0x72, 0x4F, 0, 0, 0, 0} // 2012-03-28
+				wire.HandshakeMessage{Tag: protocol.TagSCFG, Data: scfg}.Write(b)
+				tagMap[protocol.TagSCFG] = b.Bytes()
+				// make sure we actually set protocol.TagEXPY correct
 				serverConfig, err := parseServerConfig(b.Bytes())
 				Expect(err).ToNot(HaveOccurred())
 				Expect(serverConfig.expiry.Year()).To(Equal(2012))
@@ -348,8 +349,8 @@ var _ = Describe("Client Crypto Setup", func() {
 
 			It("generates a client nonce after reading a server config", func() {
 				b := &bytes.Buffer{}
-				HandshakeMessage{Tag: TagSCFG, Data: getDefaultServerConfigClient()}.Write(b)
-				tagMap[TagSCFG] = b.Bytes()
+				wire.HandshakeMessage{Tag: protocol.TagSCFG, Data: getDefaultServerConfigClient()}.Write(b)
+				tagMap[protocol.TagSCFG] = b.Bytes()
 				err := cs.handleREJMessage(tagMap)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(cs.nonc).To(HaveLen(32))
@@ -357,8 +358,8 @@ var _ = Describe("Client Crypto Setup", func() {
 
 			It("only generates a client nonce once, when reading multiple server configs", func() {
 				b := &bytes.Buffer{}
-				HandshakeMessage{Tag: TagSCFG, Data: getDefaultServerConfigClient()}.Write(b)
-				tagMap[TagSCFG] = b.Bytes()
+				wire.HandshakeMessage{Tag: protocol.TagSCFG, Data: getDefaultServerConfigClient()}.Write(b)
+				tagMap[protocol.TagSCFG] = b.Bytes()
 				err := cs.handleREJMessage(tagMap)
 				Expect(err).ToNot(HaveOccurred())
 				nonc := cs.nonc
@@ -370,8 +371,8 @@ var _ = Describe("Client Crypto Setup", func() {
 
 			It("passes on errors from reading the server config", func() {
 				b := &bytes.Buffer{}
-				HandshakeMessage{Tag: TagSHLO, Data: make(map[Tag][]byte)}.Write(b)
-				tagMap[TagSCFG] = b.Bytes()
+				wire.HandshakeMessage{Tag: protocol.TagSHLO, Data: make(map[protocol.Tag][]byte)}.Write(b)
+				tagMap[protocol.TagSCFG] = b.Bytes()
 				_, origErr := parseServerConfig(b.Bytes())
 				err := cs.handleREJMessage(tagMap)
 				Expect(err).To(HaveOccurred())
@@ -400,14 +401,14 @@ var _ = Describe("Client Crypto Setup", func() {
 		})
 
 		It("rejects SHLOs without a PUBS", func() {
-			delete(shloMap, TagPUBS)
+			delete(shloMap, protocol.TagPUBS)
 			_, err := cs.handleSHLOMessage(shloMap)
 			Expect(err).To(MatchError(qerr.Error(qerr.CryptoMessageParameterNotFound, "PUBS")))
 			Expect(handshakeEvent).ToNot(BeClosed())
 		})
 
 		It("rejects SHLOs without a version list", func() {
-			delete(shloMap, TagVER)
+			delete(shloMap, protocol.TagVER)
 			_, err := cs.handleSHLOMessage(shloMap)
 			Expect(err).To(MatchError(qerr.Error(qerr.InvalidCryptoMessageParameter, "server hello missing version list")))
 			Expect(handshakeEvent).ToNot(BeClosed())
@@ -419,34 +420,34 @@ var _ = Describe("Client Crypto Setup", func() {
 			cs.receivedSecurePacket = true
 			b := &bytes.Buffer{}
 			utils.BigEndian.WriteUint32(b, uint32(ver))
-			shloMap[TagVER] = b.Bytes()
+			shloMap[protocol.TagVER] = b.Bytes()
 			_, err := cs.handleSHLOMessage(shloMap)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("reads the server nonce, if set", func() {
-			shloMap[TagSNO] = []byte("server nonce")
+			shloMap[protocol.TagSNO] = []byte("server nonce")
 			_, err := cs.handleSHLOMessage(shloMap)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(cs.sno).To(Equal(shloMap[TagSNO]))
+			Expect(cs.sno).To(Equal(shloMap[protocol.TagSNO]))
 		})
 
 		It("creates a forwardSecureAEAD", func() {
-			shloMap[TagSNO] = []byte("server nonce")
+			shloMap[protocol.TagSNO] = []byte("server nonce")
 			_, err := cs.handleSHLOMessage(shloMap)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(cs.forwardSecureAEAD).ToNot(BeNil())
 		})
 
 		It("reads the connection parameters", func() {
-			shloMap[TagICSL] = []byte{13, 0, 0, 0} // 13 seconds
+			shloMap[protocol.TagICSL] = []byte{13, 0, 0, 0} // 13 seconds
 			params, err := cs.handleSHLOMessage(shloMap)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(params.IdleTimeout).To(Equal(13 * time.Second))
 		})
 
 		It("closes the handshakeEvent chan when receiving an SHLO", func() {
-			HandshakeMessage{Tag: TagSHLO, Data: shloMap}.Write(&stream.dataToRead)
+			wire.HandshakeMessage{Tag: protocol.TagSHLO, Data: shloMap}.Write(&stream.dataToRead)
 			done := make(chan struct{})
 			go func() {
 				defer GinkgoRecover()
@@ -462,8 +463,8 @@ var _ = Describe("Client Crypto Setup", func() {
 		})
 
 		It("passes the transport parameters on the channel", func() {
-			shloMap[TagSFCW] = []byte{0x0d, 0x00, 0xdf, 0xba}
-			HandshakeMessage{Tag: TagSHLO, Data: shloMap}.Write(&stream.dataToRead)
+			shloMap[protocol.TagSFCW] = []byte{0x0d, 0x00, 0xdf, 0xba}
+			wire.HandshakeMessage{Tag: protocol.TagSHLO, Data: shloMap}.Write(&stream.dataToRead)
 			done := make(chan struct{})
 			go func() {
 				defer GinkgoRecover()
@@ -480,7 +481,7 @@ var _ = Describe("Client Crypto Setup", func() {
 		})
 
 		It("errors if it can't read a connection parameter", func() {
-			shloMap[TagICSL] = []byte{3, 0, 0} // 1 byte too short
+			shloMap[protocol.TagICSL] = []byte{3, 0, 0} // 1 byte too short
 			_, err := cs.handleSHLOMessage(shloMap)
 			Expect(err).To(MatchError(qerr.InvalidCryptoMessageParameter))
 		})
@@ -494,10 +495,10 @@ var _ = Describe("Client Crypto Setup", func() {
 		})
 
 		It("doesn't overflow the packet with padding", func() {
-			tagMap := make(map[Tag][]byte)
-			tagMap[TagSCID] = bytes.Repeat([]byte{0}, protocol.MinClientHelloSize*6/10)
+			tagMap := make(map[protocol.Tag][]byte)
+			tagMap[protocol.TagSCID] = bytes.Repeat([]byte{0}, protocol.MinClientHelloSize*6/10)
 			cs.addPadding(tagMap)
-			Expect(len(tagMap[TagPAD])).To(BeNumerically("<", protocol.MinClientHelloSize/2))
+			Expect(len(tagMap[protocol.TagPAD])).To(BeNumerically("<", protocol.MinClientHelloSize/2))
 		})
 
 		It("saves the last sent CHLO", func() {
@@ -521,18 +522,18 @@ var _ = Describe("Client Crypto Setup", func() {
 			certManager.commonCertificateHashes = []byte("common certs")
 			tags, err := cs.getTags()
 			Expect(err).ToNot(HaveOccurred())
-			Expect(string(tags[TagSNI])).To(Equal(cs.hostname))
-			Expect(tags[TagPDMD]).To(Equal([]byte("X509")))
-			Expect(tags[TagVER]).To(Equal([]byte("Q039")))
-			Expect(tags[TagCCS]).To(Equal(certManager.commonCertificateHashes))
-			Expect(tags).ToNot(HaveKey(TagTCID))
+			Expect(string(tags[protocol.TagSNI])).To(Equal(cs.hostname))
+			Expect(tags[protocol.TagPDMD]).To(Equal([]byte("X509")))
+			Expect(tags[protocol.TagVER]).To(Equal([]byte("Q039")))
+			Expect(tags[protocol.TagCCS]).To(Equal(certManager.commonCertificateHashes))
+			Expect(tags).ToNot(HaveKey(protocol.TagTCID))
 		})
 
 		It("requests to omit the connection ID", func() {
 			cs.params.OmitConnectionID = true
 			tags, err := cs.getTags()
 			Expect(err).ToNot(HaveOccurred())
-			Expect(tags).To(HaveKeyWithValue(TagTCID, []byte{0, 0, 0, 0}))
+			Expect(tags).To(HaveKeyWithValue(protocol.TagTCID, []byte{0, 0, 0, 0}))
 		})
 
 		It("adds the tags returned from the connectionParametersManager to the CHLO", func() {
@@ -549,7 +550,7 @@ var _ = Describe("Client Crypto Setup", func() {
 			certManager.commonCertificateHashes = nil
 			tags, err := cs.getTags()
 			Expect(err).ToNot(HaveOccurred())
-			Expect(tags).ToNot(HaveKey(TagCCS))
+			Expect(tags).ToNot(HaveKey(protocol.TagCCS))
 		})
 
 		It("includes the server config id, if available", func() {
@@ -557,29 +558,29 @@ var _ = Describe("Client Crypto Setup", func() {
 			cs.serverConfig = &serverConfigClient{ID: id}
 			tags, err := cs.getTags()
 			Expect(err).ToNot(HaveOccurred())
-			Expect(tags[TagSCID]).To(Equal(id))
+			Expect(tags[protocol.TagSCID]).To(Equal(id))
 		})
 
 		It("includes the source address token, if available", func() {
 			cs.stk = []byte("sourceaddresstoken")
 			tags, err := cs.getTags()
 			Expect(err).ToNot(HaveOccurred())
-			Expect(tags[TagSTK]).To(Equal(cs.stk))
+			Expect(tags[protocol.TagSTK]).To(Equal(cs.stk))
 		})
 
 		It("includes the server nonce, if available", func() {
 			cs.sno = []byte("foobar")
 			tags, err := cs.getTags()
 			Expect(err).ToNot(HaveOccurred())
-			Expect(tags[TagSNO]).To(Equal(cs.sno))
+			Expect(tags[protocol.TagSNO]).To(Equal(cs.sno))
 		})
 
 		It("doesn't include optional values, if not available", func() {
 			tags, err := cs.getTags()
 			Expect(err).ToNot(HaveOccurred())
-			Expect(tags).ToNot(HaveKey(TagSCID))
-			Expect(tags).ToNot(HaveKey(TagSNO))
-			Expect(tags).ToNot(HaveKey(TagSTK))
+			Expect(tags).ToNot(HaveKey(protocol.TagSCID))
+			Expect(tags).ToNot(HaveKey(protocol.TagSNO))
+			Expect(tags).ToNot(HaveKey(protocol.TagSTK))
 		})
 
 		It("doesn't change any values after reading the certificate, if the server config is missing", func() {
@@ -599,11 +600,11 @@ var _ = Describe("Client Crypto Setup", func() {
 			certManager.leafCertHash = binary.LittleEndian.Uint64(xlct)
 			tags, err := cs.getTags()
 			Expect(err).ToNot(HaveOccurred())
-			Expect(tags[TagNONC]).To(Equal(cs.nonc))
-			Expect(tags[TagPUBS]).To(Equal(kex.PublicKey()))
-			Expect(tags[TagXLCT]).To(Equal(xlct))
-			Expect(tags[TagKEXS]).To(Equal([]byte("C255")))
-			Expect(tags[TagAEAD]).To(Equal([]byte("AESG")))
+			Expect(tags[protocol.TagNONC]).To(Equal(cs.nonc))
+			Expect(tags[protocol.TagPUBS]).To(Equal(kex.PublicKey()))
+			Expect(tags[protocol.TagXLCT]).To(Equal(xlct))
+			Expect(tags[protocol.TagKEXS]).To(Equal([]byte("C255")))
+			Expect(tags[protocol.TagAEAD]).To(Equal([]byte("AESG")))
 		})
 
 		It("doesn't send more than MaxClientHellos CHLOs", func() {

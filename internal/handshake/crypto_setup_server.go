@@ -12,6 +12,7 @@ import (
 	"github.com/lucas-clemente/quic-go/internal/crypto"
 	"github.com/lucas-clemente/quic-go/internal/protocol"
 	"github.com/lucas-clemente/quic-go/internal/utils"
+	"github.com/lucas-clemente/quic-go/internal/wire"
 	"github.com/lucas-clemente/quic-go/qerr"
 )
 
@@ -112,11 +113,11 @@ func NewCryptoSetup(
 func (h *cryptoSetupServer) HandleCryptoStream() error {
 	for {
 		var chloData bytes.Buffer
-		message, err := ParseHandshakeMessage(io.TeeReader(h.cryptoStream, &chloData))
+		message, err := wire.ParseHandshakeMessage(io.TeeReader(h.cryptoStream, &chloData))
 		if err != nil {
 			return qerr.HandshakeFailed
 		}
-		if message.Tag != TagCHLO {
+		if message.Tag != protocol.TagCHLO {
 			return qerr.InvalidCryptoMessageType
 		}
 
@@ -131,15 +132,15 @@ func (h *cryptoSetupServer) HandleCryptoStream() error {
 	}
 }
 
-func (h *cryptoSetupServer) handleMessage(chloData []byte, cryptoData map[Tag][]byte) (bool, error) {
-	if _, isHOLExperiment := cryptoData[TagFHL2]; isHOLExperiment {
+func (h *cryptoSetupServer) handleMessage(chloData []byte, cryptoData map[protocol.Tag][]byte) (bool, error) {
+	if _, isHOLExperiment := cryptoData[protocol.TagFHL2]; isHOLExperiment {
 		return false, ErrHOLExperiment
 	}
-	if _, isNSTPExperiment := cryptoData[TagNSTP]; isNSTPExperiment {
+	if _, isNSTPExperiment := cryptoData[protocol.TagNSTP]; isNSTPExperiment {
 		return false, ErrNSTPExperiment
 	}
 
-	sniSlice, ok := cryptoData[TagSNI]
+	sniSlice, ok := cryptoData[protocol.TagSNI]
 	if !ok {
 		return false, qerr.Error(qerr.CryptoMessageParameterNotFound, "SNI required")
 	}
@@ -151,7 +152,7 @@ func (h *cryptoSetupServer) handleMessage(chloData []byte, cryptoData map[Tag][]
 
 	// prevent version downgrade attacks
 	// see https://groups.google.com/a/chromium.org/forum/#!topic/proto-quic/N-de9j63tCk for a discussion and examples
-	verSlice, ok := cryptoData[TagVER]
+	verSlice, ok := cryptoData[protocol.TagVER]
 	if !ok {
 		return false, qerr.Error(qerr.InvalidCryptoMessageParameter, "client hello missing version tag")
 	}
@@ -283,15 +284,15 @@ func (h *cryptoSetupServer) GetSealerWithEncryptionLevel(encLevel protocol.Encry
 	return nil, errors.New("CryptoSetupServer: no encryption level specified")
 }
 
-func (h *cryptoSetupServer) isInchoateCHLO(cryptoData map[Tag][]byte, cert []byte) bool {
-	if _, ok := cryptoData[TagPUBS]; !ok {
+func (h *cryptoSetupServer) isInchoateCHLO(cryptoData map[protocol.Tag][]byte, cert []byte) bool {
+	if _, ok := cryptoData[protocol.TagPUBS]; !ok {
 		return true
 	}
-	scid, ok := cryptoData[TagSCID]
+	scid, ok := cryptoData[protocol.TagSCID]
 	if !ok || !bytes.Equal(h.scfg.ID, scid) {
 		return true
 	}
-	xlctTag, ok := cryptoData[TagXLCT]
+	xlctTag, ok := cryptoData[protocol.TagXLCT]
 	if !ok || len(xlctTag) != 8 {
 		return true
 	}
@@ -299,7 +300,7 @@ func (h *cryptoSetupServer) isInchoateCHLO(cryptoData map[Tag][]byte, cert []byt
 	if crypto.HashCert(cert) != xlct {
 		return true
 	}
-	return !h.acceptSTK(cryptoData[TagSTK])
+	return !h.acceptSTK(cryptoData[protocol.TagSTK])
 }
 
 func (h *cryptoSetupServer) acceptSTK(token []byte) bool {
@@ -311,38 +312,38 @@ func (h *cryptoSetupServer) acceptSTK(token []byte) bool {
 	return h.acceptSTKCallback(h.remoteAddr, stk)
 }
 
-func (h *cryptoSetupServer) handleInchoateCHLO(sni string, chlo []byte, cryptoData map[Tag][]byte) ([]byte, error) {
+func (h *cryptoSetupServer) handleInchoateCHLO(sni string, chlo []byte, cryptoData map[protocol.Tag][]byte) ([]byte, error) {
 	token, err := h.scfg.cookieGenerator.NewToken(h.remoteAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	replyMap := map[Tag][]byte{
-		TagSCFG: h.scfg.Get(),
-		TagSTK:  token,
-		TagSVID: []byte("quic-go"),
+	replyMap := map[protocol.Tag][]byte{
+		protocol.TagSCFG: h.scfg.Get(),
+		protocol.TagSTK:  token,
+		protocol.TagSVID: []byte("quic-go"),
 	}
 
-	if h.acceptSTK(cryptoData[TagSTK]) {
+	if h.acceptSTK(cryptoData[protocol.TagSTK]) {
 		proof, err := h.scfg.Sign(sni, chlo)
 		if err != nil {
 			return nil, err
 		}
 
-		commonSetHashes := cryptoData[TagCCS]
-		cachedCertsHashes := cryptoData[TagCCRT]
+		commonSetHashes := cryptoData[protocol.TagCCS]
+		cachedCertsHashes := cryptoData[protocol.TagCCRT]
 
 		certCompressed, err := h.scfg.GetCertsCompressed(sni, commonSetHashes, cachedCertsHashes)
 		if err != nil {
 			return nil, err
 		}
 		// Token was valid, send more details
-		replyMap[TagPROF] = proof
-		replyMap[TagCERT] = certCompressed
+		replyMap[protocol.TagPROF] = proof
+		replyMap[protocol.TagCERT] = certCompressed
 	}
 
-	message := HandshakeMessage{
-		Tag:  TagREJ,
+	message := wire.HandshakeMessage{
+		Tag:  protocol.TagREJ,
 		Data: replyMap,
 	}
 
@@ -352,9 +353,9 @@ func (h *cryptoSetupServer) handleInchoateCHLO(sni string, chlo []byte, cryptoDa
 	return serverReply.Bytes(), nil
 }
 
-func (h *cryptoSetupServer) handleCHLO(sni string, data []byte, cryptoData map[Tag][]byte) ([]byte, error) {
+func (h *cryptoSetupServer) handleCHLO(sni string, data []byte, cryptoData map[protocol.Tag][]byte) ([]byte, error) {
 	// We have a CHLO matching our server config, we can continue with the 0-RTT handshake
-	sharedSecret, err := h.scfg.kex.CalculateSharedKey(cryptoData[TagPUBS])
+	sharedSecret, err := h.scfg.kex.CalculateSharedKey(cryptoData[protocol.TagPUBS])
 	if err != nil {
 		return nil, err
 	}
@@ -372,18 +373,18 @@ func (h *cryptoSetupServer) handleCHLO(sni string, data []byte, cryptoData map[T
 		return nil, err
 	}
 
-	clientNonce := cryptoData[TagNONC]
+	clientNonce := cryptoData[protocol.TagNONC]
 	err = h.validateClientNonce(clientNonce)
 	if err != nil {
 		return nil, err
 	}
 
-	aead := cryptoData[TagAEAD]
+	aead := cryptoData[protocol.TagAEAD]
 	if !bytes.Equal(aead, []byte("AESG")) {
 		return nil, qerr.Error(qerr.CryptoNoSupport, "Unsupported AEAD or KEXS")
 	}
 
-	kexs := cryptoData[TagKEXS]
+	kexs := cryptoData[protocol.TagKEXS]
 	if !bytes.Equal(kexs, []byte("C255")) {
 		return nil, qerr.Error(qerr.CryptoNoSupport, "Unsupported AEAD or KEXS")
 	}
@@ -413,7 +414,7 @@ func (h *cryptoSetupServer) handleCHLO(sni string, data []byte, cryptoData map[T
 	if err != nil {
 		return nil, err
 	}
-	ephermalSharedSecret, err := ephermalKex.CalculateSharedKey(cryptoData[TagPUBS])
+	ephermalSharedSecret, err := ephermalKex.CalculateSharedKey(cryptoData[protocol.TagPUBS])
 	if err != nil {
 		return nil, err
 	}
@@ -440,13 +441,13 @@ func (h *cryptoSetupServer) handleCHLO(sni string, data []byte, cryptoData map[T
 	for _, v := range h.supportedVersions {
 		utils.BigEndian.WriteUint32(verTag, uint32(v))
 	}
-	replyMap[TagPUBS] = ephermalKex.PublicKey()
-	replyMap[TagSNO] = serverNonce
-	replyMap[TagVER] = verTag.Bytes()
+	replyMap[protocol.TagPUBS] = ephermalKex.PublicKey()
+	replyMap[protocol.TagSNO] = serverNonce
+	replyMap[protocol.TagVER] = verTag.Bytes()
 
 	// note that the SHLO *has* to fit into one packet
-	message := HandshakeMessage{
-		Tag:  TagSHLO,
+	message := wire.HandshakeMessage{
+		Tag:  protocol.TagSHLO,
 		Data: replyMap,
 	}
 	var reply bytes.Buffer

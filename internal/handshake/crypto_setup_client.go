@@ -14,6 +14,7 @@ import (
 	"github.com/lucas-clemente/quic-go/internal/crypto"
 	"github.com/lucas-clemente/quic-go/internal/protocol"
 	"github.com/lucas-clemente/quic-go/internal/utils"
+	"github.com/lucas-clemente/quic-go/internal/wire"
 	"github.com/lucas-clemente/quic-go/qerr"
 )
 
@@ -105,12 +106,12 @@ func NewCryptoSetupClient(
 }
 
 func (h *cryptoSetupClient) HandleCryptoStream() error {
-	messageChan := make(chan HandshakeMessage)
+	messageChan := make(chan wire.HandshakeMessage)
 	errorChan := make(chan error, 1)
 
 	go func() {
 		for {
-			message, err := ParseHandshakeMessage(h.cryptoStream)
+			message, err := wire.ParseHandshakeMessage(h.cryptoStream)
 			if err != nil {
 				errorChan <- qerr.Error(qerr.HandshakeFailed, err.Error())
 				return
@@ -133,7 +134,7 @@ func (h *cryptoSetupClient) HandleCryptoStream() error {
 			}
 		}
 
-		var message HandshakeMessage
+		var message wire.HandshakeMessage
 		select {
 		case <-h.divNonceChan:
 			// there's no message to process, but we should try upgrading the crypto again
@@ -145,11 +146,11 @@ func (h *cryptoSetupClient) HandleCryptoStream() error {
 
 		h.logger.Debugf("Got %s", message)
 		switch message.Tag {
-		case TagREJ:
+		case protocol.TagREJ:
 			if err := h.handleREJMessage(message.Data); err != nil {
 				return err
 			}
-		case TagSHLO:
+		case protocol.TagSHLO:
 			params, err := h.handleSHLOMessage(message.Data)
 			if err != nil {
 				return err
@@ -164,19 +165,19 @@ func (h *cryptoSetupClient) HandleCryptoStream() error {
 	}
 }
 
-func (h *cryptoSetupClient) handleREJMessage(cryptoData map[Tag][]byte) error {
+func (h *cryptoSetupClient) handleREJMessage(cryptoData map[protocol.Tag][]byte) error {
 	var err error
 
-	if stk, ok := cryptoData[TagSTK]; ok {
+	if stk, ok := cryptoData[protocol.TagSTK]; ok {
 		h.stk = stk
 	}
 
-	if sno, ok := cryptoData[TagSNO]; ok {
+	if sno, ok := cryptoData[protocol.TagSNO]; ok {
 		h.sno = sno
 	}
 
 	// TODO: what happens if the server sends a different server config in two packets?
-	if scfg, ok := cryptoData[TagSCFG]; ok {
+	if scfg, ok := cryptoData[protocol.TagSCFG]; ok {
 		h.serverConfig, err = parseServerConfig(scfg)
 		if err != nil {
 			return err
@@ -195,12 +196,12 @@ func (h *cryptoSetupClient) handleREJMessage(cryptoData map[Tag][]byte) error {
 		}
 	}
 
-	if proof, ok := cryptoData[TagPROF]; ok {
+	if proof, ok := cryptoData[protocol.TagPROF]; ok {
 		h.proof = proof
 		h.chloForSignature = h.lastSentCHLO
 	}
 
-	if crt, ok := cryptoData[TagCERT]; ok {
+	if crt, ok := cryptoData[protocol.TagCERT]; ok {
 		err := h.certManager.SetData(crt)
 		if err != nil {
 			return qerr.Error(qerr.InvalidCryptoMessageParameter, "Certificate data invalid")
@@ -226,7 +227,7 @@ func (h *cryptoSetupClient) handleREJMessage(cryptoData map[Tag][]byte) error {
 	return nil
 }
 
-func (h *cryptoSetupClient) handleSHLOMessage(cryptoData map[Tag][]byte) (*TransportParameters, error) {
+func (h *cryptoSetupClient) handleSHLOMessage(cryptoData map[protocol.Tag][]byte) (*TransportParameters, error) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
@@ -234,16 +235,16 @@ func (h *cryptoSetupClient) handleSHLOMessage(cryptoData map[Tag][]byte) (*Trans
 		return nil, qerr.Error(qerr.CryptoEncryptionLevelIncorrect, "unencrypted SHLO message")
 	}
 
-	if sno, ok := cryptoData[TagSNO]; ok {
+	if sno, ok := cryptoData[protocol.TagSNO]; ok {
 		h.sno = sno
 	}
 
-	serverPubs, ok := cryptoData[TagPUBS]
+	serverPubs, ok := cryptoData[protocol.TagPUBS]
 	if !ok {
 		return nil, qerr.Error(qerr.CryptoMessageParameterNotFound, "PUBS")
 	}
 
-	verTag, ok := cryptoData[TagVER]
+	verTag, ok := cryptoData[protocol.TagVER]
 	if !ok {
 		return nil, qerr.Error(qerr.InvalidCryptoMessageParameter, "server hello missing version list")
 	}
@@ -409,8 +410,8 @@ func (h *cryptoSetupClient) sendCHLO() error {
 		return err
 	}
 	h.addPadding(tags)
-	message := HandshakeMessage{
-		Tag:  TagCHLO,
+	message := wire.HandshakeMessage{
+		Tag:  protocol.TagCHLO,
 		Data: tags,
 	}
 
@@ -426,29 +427,29 @@ func (h *cryptoSetupClient) sendCHLO() error {
 	return nil
 }
 
-func (h *cryptoSetupClient) getTags() (map[Tag][]byte, error) {
+func (h *cryptoSetupClient) getTags() (map[protocol.Tag][]byte, error) {
 	tags := h.params.getHelloMap()
-	tags[TagSNI] = []byte(h.hostname)
-	tags[TagPDMD] = []byte("X509")
+	tags[protocol.TagSNI] = []byte(h.hostname)
+	tags[protocol.TagPDMD] = []byte("X509")
 
 	ccs := h.certManager.GetCommonCertificateHashes()
 	if len(ccs) > 0 {
-		tags[TagCCS] = ccs
+		tags[protocol.TagCCS] = ccs
 	}
 
 	versionTag := make([]byte, 4)
 	binary.BigEndian.PutUint32(versionTag, uint32(h.initialVersion))
-	tags[TagVER] = versionTag
+	tags[protocol.TagVER] = versionTag
 
 	if len(h.stk) > 0 {
-		tags[TagSTK] = h.stk
+		tags[protocol.TagSTK] = h.stk
 	}
 	if len(h.sno) > 0 {
-		tags[TagSNO] = h.sno
+		tags[protocol.TagSNO] = h.sno
 	}
 
 	if h.serverConfig != nil {
-		tags[TagSCID] = h.serverConfig.ID
+		tags[protocol.TagSCID] = h.serverConfig.ID
 
 		leafCert := h.certManager.GetLeafCert()
 		if leafCert != nil {
@@ -456,11 +457,11 @@ func (h *cryptoSetupClient) getTags() (map[Tag][]byte, error) {
 			xlct := make([]byte, 8)
 			binary.LittleEndian.PutUint64(xlct, certHash)
 
-			tags[TagNONC] = h.nonc
-			tags[TagXLCT] = xlct
-			tags[TagKEXS] = []byte("C255")
-			tags[TagAEAD] = []byte("AESG")
-			tags[TagPUBS] = h.serverConfig.kex.PublicKey() // TODO: check if 3 bytes need to be prepended
+			tags[protocol.TagNONC] = h.nonc
+			tags[protocol.TagXLCT] = xlct
+			tags[protocol.TagKEXS] = []byte("C255")
+			tags[protocol.TagAEAD] = []byte("AESG")
+			tags[protocol.TagPUBS] = h.serverConfig.kex.PublicKey() // TODO: check if 3 bytes need to be prepended
 		}
 	}
 
@@ -468,14 +469,14 @@ func (h *cryptoSetupClient) getTags() (map[Tag][]byte, error) {
 }
 
 // add a TagPAD to a tagMap, such that the total size will be bigger than the ClientHelloMinimumSize
-func (h *cryptoSetupClient) addPadding(tags map[Tag][]byte) {
+func (h *cryptoSetupClient) addPadding(tags map[protocol.Tag][]byte) {
 	var size int
 	for _, tag := range tags {
 		size += 8 + len(tag) // 4 bytes for the tag + 4 bytes for the offset + the length of the data
 	}
 	paddingSize := protocol.MinClientHelloSize - size
 	if paddingSize > 0 {
-		tags[TagPAD] = bytes.Repeat([]byte{0}, paddingSize)
+		tags[protocol.TagPAD] = bytes.Repeat([]byte{0}, paddingSize)
 	}
 }
 

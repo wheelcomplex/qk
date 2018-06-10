@@ -1,4 +1,4 @@
-package handshake
+package protocol
 
 // A Tag in the QUIC crypto
 type Tag uint32

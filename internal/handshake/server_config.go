@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 
 	"github.com/lucas-clemente/quic-go/internal/crypto"
+	"github.com/lucas-clemente/quic-go/internal/protocol"
+	"github.com/lucas-clemente/quic-go/internal/wire"
 )
 
 // ServerConfig is a server config
@@ -47,15 +49,15 @@ func NewServerConfig(kex crypto.KeyExchange, certChain crypto.CertChain) (*Serve
 // Get the server config binary representation
 func (s *ServerConfig) Get() []byte {
 	var serverConfig bytes.Buffer
-	msg := HandshakeMessage{
-		Tag: TagSCFG,
-		Data: map[Tag][]byte{
-			TagSCID: s.ID,
-			TagKEXS: []byte("C255"),
-			TagAEAD: []byte("AESG"),
-			TagPUBS: append([]byte{0x20, 0x00, 0x00}, s.kex.PublicKey()...),
-			TagOBIT: s.obit,
-			TagEXPY: {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+	msg := wire.HandshakeMessage{
+		Tag: protocol.TagSCFG,
+		Data: map[protocol.Tag][]byte{
+			protocol.TagSCID: s.ID,
+			protocol.TagKEXS: []byte("C255"),
+			protocol.TagAEAD: []byte("AESG"),
+			protocol.TagPUBS: append([]byte{0x20, 0x00, 0x00}, s.kex.PublicKey()...),
+			protocol.TagOBIT: s.obit,
+			protocol.TagEXPY: {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 		},
 	}
 	msg.Write(&serverConfig)

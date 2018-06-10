@@ -31,37 +31,37 @@ type TransportParameters struct {
 }
 
 // readHelloMap reads the transport parameters from the tags sent in a gQUIC handshake message
-func readHelloMap(tags map[Tag][]byte) (*TransportParameters, error) {
+func readHelloMap(tags map[protocol.Tag][]byte) (*TransportParameters, error) {
 	params := &TransportParameters{}
-	if value, ok := tags[TagTCID]; ok {
+	if value, ok := tags[protocol.TagTCID]; ok {
 		v, err := utils.LittleEndian.ReadUint32(bytes.NewBuffer(value))
 		if err != nil {
 			return nil, errMalformedTag
 		}
 		params.OmitConnectionID = (v == 0)
 	}
-	if value, ok := tags[TagMIDS]; ok {
+	if value, ok := tags[protocol.TagMIDS]; ok {
 		v, err := utils.LittleEndian.ReadUint32(bytes.NewBuffer(value))
 		if err != nil {
 			return nil, errMalformedTag
 		}
 		params.MaxStreams = v
 	}
-	if value, ok := tags[TagICSL]; ok {
+	if value, ok := tags[protocol.TagICSL]; ok {
 		v, err := utils.LittleEndian.ReadUint32(bytes.NewBuffer(value))
 		if err != nil {
 			return nil, errMalformedTag
 		}
 		params.IdleTimeout = utils.MaxDuration(protocol.MinRemoteIdleTimeout, time.Duration(v)*time.Second)
 	}
-	if value, ok := tags[TagSFCW]; ok {
+	if value, ok := tags[protocol.TagSFCW]; ok {
 		v, err := utils.LittleEndian.ReadUint32(bytes.NewBuffer(value))
 		if err != nil {
 			return nil, errMalformedTag
 		}
 		params.StreamFlowControlWindow = protocol.ByteCount(v)
 	}
-	if value, ok := tags[TagCFCW]; ok {
+	if value, ok := tags[protocol.TagCFCW]; ok {
 		v, err := utils.LittleEndian.ReadUint32(bytes.NewBuffer(value))
 		if err != nil {
 			return nil, errMalformedTag
@@ -72,7 +72,7 @@ func readHelloMap(tags map[Tag][]byte) (*TransportParameters, error) {
 }
 
 // GetHelloMap gets all parameters needed for the Hello message in the gQUIC handshake.
-func (p *TransportParameters) getHelloMap() map[Tag][]byte {
+func (p *TransportParameters) getHelloMap() map[protocol.Tag][]byte {
 	sfcw := bytes.NewBuffer([]byte{})
 	utils.LittleEndian.WriteUint32(sfcw, uint32(p.StreamFlowControlWindow))
 	cfcw := bytes.NewBuffer([]byte{})
@@ -82,14 +82,14 @@ func (p *TransportParameters) getHelloMap() map[Tag][]byte {
 	icsl := bytes.NewBuffer([]byte{})
 	utils.LittleEndian.WriteUint32(icsl, uint32(p.IdleTimeout/time.Second))
 
-	tags := map[Tag][]byte{
-		TagICSL: icsl.Bytes(),
-		TagMIDS: mids.Bytes(),
-		TagCFCW: cfcw.Bytes(),
-		TagSFCW: sfcw.Bytes(),
+	tags := map[protocol.Tag][]byte{
+		protocol.TagICSL: icsl.Bytes(),
+		protocol.TagMIDS: mids.Bytes(),
+		protocol.TagCFCW: cfcw.Bytes(),
+		protocol.TagSFCW: sfcw.Bytes(),
 	}
 	if p.OmitConnectionID {
-		tags[TagTCID] = []byte{0, 0, 0, 0}
+		tags[protocol.TagTCID] = []byte{0, 0, 0, 0}
 	}
 	return tags
 }
