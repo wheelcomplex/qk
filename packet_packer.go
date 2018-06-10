@@ -175,10 +175,7 @@ func (p *packetPacker) PackRetransmission(packet *ackhandler.Packet) ([]*packedP
 		var payloadLength protocol.ByteCount
 
 		pn, pnLen, header := p.getHeader(encLevel)
-		headerLen, err := header.GetLength(pnLen, p.perspective, p.version)
-		if err != nil {
-			return nil, err
-		}
+		headerLen := header.GetLength(pnLen, p.perspective, p.version)
 		maxSize := p.maxPacketSize - protocol.ByteCount(sealer.Overhead()) - headerLen
 
 		// for gQUIC: add a STOP_WAITING for *every* retransmission
@@ -303,10 +300,7 @@ func (p *packetPacker) PackPacket() (*packedPacket, error) {
 	encLevel, sealer := p.cryptoSetup.GetSealer()
 
 	pn, pnLen, header := p.getHeader(encLevel)
-	headerLen, err := header.GetLength(pnLen, p.perspective, p.version)
-	if err != nil {
-		return nil, err
-	}
+	headerLen := header.GetLength(pnLen, p.perspective, p.version)
 	if p.stopWaiting != nil {
 		p.stopWaiting.PacketNumber = pn
 		p.stopWaiting.PacketNumberLen = pnLen
@@ -358,10 +352,7 @@ func (p *packetPacker) PackPacket() (*packedPacket, error) {
 func (p *packetPacker) packCryptoPacket() (*packedPacket, error) {
 	encLevel, sealer := p.cryptoSetup.GetSealerForCryptoStream()
 	pn, pnLen, header := p.getHeader(encLevel)
-	headerLen, err := header.GetLength(pnLen, p.perspective, p.version)
-	if err != nil {
-		return nil, err
-	}
+	headerLen := header.GetLength(pnLen, p.perspective, p.version)
 	maxLen := p.maxPacketSize - protocol.ByteCount(sealer.Overhead()) - protocol.NonForwardSecurePacketSizeReduction - headerLen
 	sf := p.streams.PopCryptoStreamFrame(maxLen)
 	sf.DataLenPresent = false
@@ -506,10 +497,7 @@ func (p *packetPacker) writeAndSealPacket(
 	// the payload length is only needed for Long Headers
 	if header.IsLongHeader {
 		if header.Type == protocol.PacketTypeInitial {
-			headerLen, err := header.GetLength(pnLen, p.perspective, p.version)
-			if err != nil {
-				return nil, err
-			}
+			headerLen := header.GetLength(pnLen, p.perspective, p.version)
 			header.Length = protocol.ByteCount(protocol.MinInitialPacketSize) - headerLen + protocol.ByteCount(pnLen)
 		} else {
 			payloadLen := protocol.ByteCount(sealer.Overhead()) + protocol.ByteCount(pnLen)

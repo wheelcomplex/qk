@@ -109,11 +109,11 @@ func (h *Header) Write(
 }
 
 // GetLength determines the length of the Header.
-func (h *Header) GetLength(pnLen protocol.PacketNumberLen, pers protocol.Perspective, version protocol.VersionNumber) (protocol.ByteCount, error) {
+func (h *Header) GetLength(pnLen protocol.PacketNumberLen, pers protocol.Perspective, version protocol.VersionNumber) protocol.ByteCount {
 	if !version.UsesTLS() {
 		return h.getPublicHeaderLength(pnLen, pers)
 	}
-	return h.getHeaderLength(pnLen), nil
+	return h.getHeaderLength(pnLen)
 }
 
 // Log logs the Header

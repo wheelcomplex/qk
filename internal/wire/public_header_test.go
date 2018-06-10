@@ -309,22 +309,6 @@ var _ = Describe("Public Header", func() {
 		})
 
 		Context("getting the length", func() {
-			It("errors when calling getPublicHeaderLength for Version Negotiation packets", func() {
-				hdr := Header{VersionFlag: true}
-				_, err := hdr.getPublicHeaderLength(0, protocol.PerspectiveServer)
-				Expect(err).To(MatchError(errGetLengthNotForVersionNegotiation))
-			})
-
-			It("errors when PacketNumberLen is not set", func() {
-				hdr := Header{
-					DestConnectionID: connID,
-					SrcConnectionID:  connID,
-				}
-				length, err := hdr.getPublicHeaderLength(0, protocol.PerspectiveServer)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(length).To(Equal(protocol.ByteCount(1 + 8))) // 1 byte public flag, 8 bytes connectionID
-			})
-
 			It("gets the length of a packet sent by the client with the VersionFlag set", func() {
 				hdr := Header{
 					DestConnectionID: connID,
@@ -333,8 +317,7 @@ var _ = Describe("Public Header", func() {
 					VersionFlag:      true,
 					Version:          versionBigEndian,
 				}
-				length, err := hdr.getPublicHeaderLength(protocol.PacketNumberLen2, protocol.PerspectiveClient)
-				Expect(err).ToNot(HaveOccurred())
+				length := hdr.getPublicHeaderLength(protocol.PacketNumberLen2, protocol.PerspectiveClient)
 				Expect(length).To(Equal(protocol.ByteCount(1 + 4 + 2))) // 1 byte public flag, 4 version number, 2 packet number
 			})
 
@@ -344,8 +327,7 @@ var _ = Describe("Public Header", func() {
 					SrcConnectionID:  connID,
 					OmitConnectionID: true,
 				}
-				length, err := hdr.getPublicHeaderLength(0, protocol.PerspectiveServer)
-				Expect(err).ToNot(HaveOccurred())
+				length := hdr.getPublicHeaderLength(0, protocol.PerspectiveServer)
 				Expect(length).To(Equal(protocol.ByteCount(1))) // public flag
 			})
 
@@ -353,8 +335,7 @@ var _ = Describe("Public Header", func() {
 				hdr := Header{
 					DiversificationNonce: []byte("foo"),
 				}
-				length, err := hdr.getPublicHeaderLength(protocol.PacketNumberLen4, protocol.PerspectiveServer)
-				Expect(err).NotTo(HaveOccurred())
+				length := hdr.getPublicHeaderLength(protocol.PacketNumberLen4, protocol.PerspectiveServer)
 				Expect(length).To(Equal(protocol.ByteCount(1 + 8 + 3 + 4))) // 1 byte public flag, 8 byte connectionID, 3 byte DiversificationNonce, 4 packet number
 			})
 		})

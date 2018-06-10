@@ -12,10 +12,9 @@ import (
 )
 
 var (
-	errReceivedOmittedConnectionID       = qerr.Error(qerr.InvalidPacketHeader, "receiving packets with omitted ConnectionID is not supported")
-	errInvalidConnectionID               = qerr.Error(qerr.InvalidPacketHeader, "connection ID cannot be 0")
-	errGetLengthNotForVersionNegotiation = errors.New("PublicHeader: GetLength cannot be called for VersionNegotiation packets")
-	errInvalidPacketNumberLen            = errors.New("invalid packet number length")
+	errReceivedOmittedConnectionID = qerr.Error(qerr.InvalidPacketHeader, "receiving packets with omitted ConnectionID is not supported")
+	errInvalidConnectionID         = qerr.Error(qerr.InvalidPacketHeader, "connection ID cannot be 0")
+	errInvalidPacketNumberLen      = errors.New("invalid packet number length")
 )
 
 // writePublicHeader writes a Public Header.
@@ -187,14 +186,7 @@ func parsePublicHeader(b *bytes.Reader, packetSentBy protocol.Perspective) (*Hea
 
 // getPublicHeaderLength gets the length of the publicHeader in bytes.
 // It can only be called for regular packets.
-func (h *Header) getPublicHeaderLength(pnLen protocol.PacketNumberLen, pers protocol.Perspective) (protocol.ByteCount, error) {
-	if h.VersionFlag && h.ResetFlag {
-		return 0, errors.New("PublicHeader: Reset Flag and Version Flag should not be set at the same time")
-	}
-	if h.VersionFlag && pers == protocol.PerspectiveServer {
-		return 0, errGetLengthNotForVersionNegotiation
-	}
-
+func (h *Header) getPublicHeaderLength(pnLen protocol.PacketNumberLen, pers protocol.Perspective) protocol.ByteCount {
 	length := protocol.ByteCount(1) // 1 byte for public flags
 	if !h.OmitConnectionID {
 		length += 8 // 8 bytes for the connection ID
@@ -205,7 +197,7 @@ func (h *Header) getPublicHeaderLength(pnLen protocol.PacketNumberLen, pers prot
 	}
 	length += protocol.ByteCount(len(h.DiversificationNonce))
 	length += protocol.ByteCount(pnLen)
-	return length, nil
+	return length
 }
 
 func (h *Header) logPublicHeader(logger utils.Logger) {

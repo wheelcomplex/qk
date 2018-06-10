@@ -247,12 +247,10 @@ var _ = Describe("Header", func() {
 			pnLen := protocol.PacketNumberLen4
 			err := hdr.Write(buf, 1, pnLen, protocol.PerspectiveServer, versionPublicHeader)
 			Expect(err).ToNot(HaveOccurred())
-			publicHeaderLen, err := hdr.getPublicHeaderLength(pnLen, protocol.PerspectiveServer)
-			Expect(err).ToNot(HaveOccurred())
+			publicHeaderLen := hdr.getPublicHeaderLength(pnLen, protocol.PerspectiveServer)
 			ietfHeaderLen := hdr.getHeaderLength(pnLen)
 			Expect(publicHeaderLen).ToNot(Equal(ietfHeaderLen)) // make sure we can distinguish between the two header types
-			len, err := hdr.GetLength(pnLen, protocol.PerspectiveServer, versionPublicHeader)
-			Expect(err).ToNot(HaveOccurred())
+			len := hdr.GetLength(pnLen, protocol.PerspectiveServer, versionPublicHeader)
 			Expect(len).To(Equal(publicHeaderLen))
 		})
 
@@ -267,13 +265,11 @@ var _ = Describe("Header", func() {
 			pnLen := protocol.PacketNumberLen4
 			err := hdr.Write(buf, 1, pnLen, protocol.PerspectiveServer, versionIETFHeader)
 			Expect(err).ToNot(HaveOccurred())
-			publicHeaderLen, err := hdr.getPublicHeaderLength(pnLen, protocol.PerspectiveServer)
-			Expect(err).ToNot(HaveOccurred())
+			publicHeaderLen := hdr.getPublicHeaderLength(pnLen, protocol.PerspectiveServer)
 			ietfHeaderLen := hdr.getHeaderLength(pnLen)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(publicHeaderLen).ToNot(Equal(ietfHeaderLen)) // make sure we can distinguish between the two header types
-			len, err := hdr.GetLength(pnLen, protocol.PerspectiveServer, versionIETFHeader)
-			Expect(err).ToNot(HaveOccurred())
+			len := hdr.GetLength(pnLen, protocol.PerspectiveServer, versionIETFHeader)
 			Expect(len).To(Equal(ietfHeaderLen))
 		})
 	})
