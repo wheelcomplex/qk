@@ -108,12 +108,18 @@ func tlsToMintConfig(tlsConf *tls.Config, pers protocol.Perspective) (*mint.Conf
 
 // unpackInitialOrRetryPacket unpacks packets Initial and Retry packets
 // These packets must contain a STREAM_FRAME for the crypto stream, starting at offset 0.
-func unpackInitialPacket(aead crypto.AEAD, hdr *wire.Header, data []byte, logger utils.Logger, version protocol.VersionNumber) (protocol.PacketNumber, *wire.StreamFrame, error) {
-	pn, pnLen, err := wire.ReadPacketNumber(bytes.NewReader(data[len(hdr.Raw):]), hdr.Raw[0], protocol.VersionTLS)
+func unpackInitialPacket(
+	aead crypto.AEAD,
+	hdr *wire.Header,
+	data []byte,
+	logger utils.Logger,
+	version protocol.VersionNumber,
+) (protocol.PacketNumber, *wire.StreamFrame, error) {
+	pn, pnLen, err := wire.ReadPacketNumber(bytes.NewReader(data[hdr.ParsedLen:]), data[0], protocol.VersionTLS)
 	if err != nil {
 		return 0, nil, err
 	}
-	payloadOffset := len(hdr.Raw) + int(pnLen)
+	payloadOffset := hdr.ParsedLen + int(pnLen)
 	decrypted, err := aead.Open(data[payloadOffset:payloadOffset], data[payloadOffset:], pn, data[:payloadOffset])
 	if err != nil {
 		return 0, nil, err
@@ -142,7 +148,7 @@ func unpackInitialPacket(aead crypto.AEAD, hdr *wire.Header, data []byte, logger
 		return 0, nil, errors.New("received stream data with non-zero offset")
 	}
 	if logger.Debug() {
-		logger.Debugf("<- Reading packet %#x (%d bytes) for connection %s", pn, len(data)+len(hdr.Raw), hdr.DestConnectionID)
+		logger.Debugf("<- Reading packet %#x (%d bytes) for connection %s", pn, len(data)+hdr.ParsedLen, hdr.DestConnectionID)
 		hdr.Log(logger)
 		wire.LogFrame(logger, frame, false)
 	}
@@ -164,12 +170,12 @@ func packUnencryptedPacket(
 	if err := hdr.Write(buffer, pn, protocol.PacketNumberLen2, pers); err != nil {
 		return nil, err
 	}
-	payloadStartIndex := buffer.Len()
+	payloadOffset := buffer.Len()
 	if err := f.Write(buffer, hdr.Version); err != nil {
 		return nil, err
 	}
 	raw = raw[0:buffer.Len()]
-	_ = aead.Seal(raw[payloadStartIndex:payloadStartIndex], raw[payloadStartIndex:], pn, raw[:payloadStartIndex])
+	_ = aead.Seal(raw[payloadOffset:payloadOffset], raw[payloadOffset:], pn, raw[:payloadOffset])
 	raw = raw[0 : buffer.Len()+aead.Overhead()]
 	if logger.Debug() {
 		logger.Debugf("-> Sending packet 0x%x (%d bytes) for connection %s, %s", pn, len(raw), hdr.SrcConnectionID, protocol.EncryptionUnencrypted)

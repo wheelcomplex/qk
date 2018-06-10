@@ -135,7 +135,7 @@ func (s *serverTLS) sendConnectionClose(remoteAddr net.Addr, clientHdr *wire.Hea
 }
 
 func (s *serverTLS) handleInitialImpl(remoteAddr net.Addr, hdr *wire.Header, data []byte) (packetHandler, protocol.ConnectionID, error) {
-	if len(hdr.Raw)+len(data) < protocol.MinInitialPacketSize {
+	if hdr.ParsedLen+len(data) < protocol.MinInitialPacketSize {
 		return nil, nil, errors.New("dropping too small Initial packet")
 	}
 	// check version, if not matching send VNP

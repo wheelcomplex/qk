@@ -35,7 +35,7 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 		buf := &bytes.Buffer{}
 		err = hdr.Write(buf, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer)
 		Expect(err).ToNot(HaveOccurred())
-		hdr.Raw = buf.Bytes()
+		hdr.ParsedLen = buf.Len()
 	})
 
 	Context("generating a mint.Config", func() {
@@ -161,7 +161,6 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 			pn := protocol.PacketNumber(1337)
 			err := hdr.Write(buf, pn, protocol.PacketNumberLen2, protocol.PerspectiveServer)
 			Expect(err).ToNot(HaveOccurred())
-			hdr.Raw = buf.Bytes()
 			f := &wire.StreamFrame{
 				Data:   []byte("foobar"),
 				FinBit: true,
@@ -170,7 +169,7 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 			Expect(err).ToNot(HaveOccurred())
 			aeadCl, err := crypto.NewNullAEAD(protocol.PerspectiveClient, connID, ver)
 			Expect(err).ToNot(HaveOccurred())
-			decrypted, err := aeadCl.Open(nil, data[len(hdr.Raw):], pn, hdr.Raw)
+			decrypted, err := aeadCl.Open(nil, data[buf.Len():], pn, buf.Bytes())
 			Expect(err).ToNot(HaveOccurred())
 			frame, err := wire.ParseNextFrame(bytes.NewReader(decrypted), pn, protocol.PacketNumberLen4, versionIETFFrames)
 			Expect(err).ToNot(HaveOccurred())

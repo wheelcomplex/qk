@@ -479,9 +479,7 @@ runLoop:
 				s.closeLocal(err)
 				continue
 			}
-			// This is a bit unclean, but works properly, since the packet always
-			// begins with the public header and we never copy it.
-			putPacketBuffer(&p.header.Raw)
+			putPacketBuffer(&p.data)
 		case p := <-s.paramsChan:
 			s.processTransportParameters(&p)
 		case _, ok := <-s.handshakeEvent:

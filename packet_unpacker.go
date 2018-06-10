@@ -71,12 +71,12 @@ func newPacketUnpackerGQUIC(aead gQUICAEAD, version protocol.VersionNumber) unpa
 }
 
 func (u *packetUnpackerGQUIC) Unpack(hdr *wire.Header, data []byte) (*unpackedPacket, error) {
-	pn, pnLen, err := wire.ReadPacketNumber(bytes.NewReader(data[len(hdr.Raw):]), hdr.Raw[0], u.version)
+	pn, pnLen, err := wire.ReadPacketNumber(bytes.NewReader(data[hdr.ParsedLen:]), data[0], u.version)
 	if err != nil {
 		return nil, err
 	}
 	pn = u.inferPacketNumber(pnLen, pn)
-	payloadOffset := len(hdr.Raw) + int(pnLen)
+	payloadOffset := hdr.ParsedLen + int(pnLen)
 	decrypted, encLevel, err := u.aead.Open(data[payloadOffset:payloadOffset], data[payloadOffset:], pn, data[:payloadOffset])
 	if err != nil {
 		// Wrap err in quicError so that public reset is sent by session
@@ -112,12 +112,12 @@ func newPacketUnpacker(aead quicAEAD, version protocol.VersionNumber) unpacker {
 }
 
 func (u *packetUnpacker) Unpack(hdr *wire.Header, data []byte) (*unpackedPacket, error) {
-	pn, pnLen, err := wire.ReadPacketNumber(bytes.NewReader(data[len(hdr.Raw):]), hdr.Raw[0], u.version)
+	pn, pnLen, err := wire.ReadPacketNumber(bytes.NewReader(data[hdr.ParsedLen:]), data[0], u.version)
 	if err != nil {
 		return nil, err
 	}
 	pn = u.inferPacketNumber(pnLen, pn)
-	payloadOffset := len(hdr.Raw) + int(pnLen)
+	payloadOffset := hdr.ParsedLen + int(pnLen)
 
 	buf := *getPacketBuffer()
 	buf = buf[:0]

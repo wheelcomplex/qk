@@ -12,7 +12,7 @@ import (
 type Header struct {
 	IsPublicHeader bool
 
-	Raw []byte
+	ParsedLen int
 
 	Version protocol.VersionNumber
 
@@ -37,6 +37,7 @@ type Header struct {
 
 // ParseHeaderSentByServer parses the header for a packet that was sent by the server.
 func ParseHeaderSentByServer(b *bytes.Reader) (*Header, error) {
+	startLen := b.Len()
 	typeByte, err := b.ReadByte()
 	if err != nil {
 		return nil, err
@@ -50,11 +51,17 @@ func ParseHeaderSentByServer(b *bytes.Reader) (*Header, error) {
 		// gQUIC never uses 6 byte packet numbers, so the third and fourth bit will never be 11
 		isPublicHeader = typeByte&0x30 != 0x30
 	}
-	return parsePacketHeader(b, protocol.PerspectiveServer, isPublicHeader)
+	hdr, err := parsePacketHeader(b, protocol.PerspectiveServer, isPublicHeader)
+	if err != nil {
+		return nil, err
+	}
+	hdr.ParsedLen = startLen - b.Len()
+	return hdr, nil
 }
 
 // ParseHeaderSentByClient parses the header for a packet that was sent by the client.
 func ParseHeaderSentByClient(b *bytes.Reader) (*Header, error) {
+	startLen := b.Len()
 	typeByte, err := b.ReadByte()
 	if err != nil {
 		return nil, err
@@ -68,7 +75,12 @@ func ParseHeaderSentByClient(b *bytes.Reader) (*Header, error) {
 	// * 0x80 is always unset and
 	// * and 0x8 is always set (this is the Connection ID flag, which the client always sets)
 	isPublicHeader := typeByte&0x88 == 0x8
-	return parsePacketHeader(b, protocol.PerspectiveClient, isPublicHeader)
+	hdr, err := parsePacketHeader(b, protocol.PerspectiveClient, isPublicHeader)
+	if err != nil {
+		return nil, err
+	}
+	hdr.ParsedLen = startLen - b.Len()
+	return hdr, nil
 }
 
 func parsePacketHeader(b *bytes.Reader, sentBy protocol.Perspective, isPublicHeader bool) (*Header, error) {

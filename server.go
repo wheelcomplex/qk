@@ -304,7 +304,6 @@ func (s *server) handlePacket(remoteAddr net.Addr, packet []byte) error {
 	if err != nil {
 		return qerr.Error(qerr.InvalidPacketHeader, err.Error())
 	}
-	hdr.Raw = packet[:len(packet)-r.Len()]
 
 	if hdr.IsPublicHeader {
 		return s.handleGQUICPacket(hdr, packet, remoteAddr, rcvTime)
@@ -317,10 +316,10 @@ func (s *server) handleIETFQUICPacket(hdr *wire.Header, packet []byte, remoteAdd
 		if !s.supportsTLS {
 			return errors.New("Received an IETF QUIC Long Header")
 		}
-		if protocol.ByteCount(len(packet)-len(hdr.Raw)) < hdr.Length {
-			return fmt.Errorf("packet payload (%d bytes) is smaller than the expected payload length (%d bytes)", len(packet)-len(hdr.Raw), hdr.Length)
+		if protocol.ByteCount(len(packet)-hdr.ParsedLen) < hdr.Length {
+			return fmt.Errorf("packet payload (%d bytes) is smaller than the expected payload length (%d bytes)", len(packet)-hdr.ParsedLen, hdr.Length)
 		}
-		packet = packet[:int(hdr.Length)+len(hdr.Raw)]
+		packet = packet[:int(hdr.Length)+hdr.ParsedLen]
 		// TODO(#1312): implement parsing of compound packets
 
 		switch hdr.Type {
@@ -385,7 +384,7 @@ func (s *server) handleGQUICPacket(hdr *wire.Header, packet []byte, remoteAddr n
 	// since the client send a Public Header (only gQUIC has a Version Flag), we need to send a gQUIC Version Negotiation Packet
 	if hdr.VersionFlag && !protocol.IsSupportedVersion(s.config.Versions, hdr.Version) {
 		// drop packets that are too small to be valid first packets
-		if len(packet)-len(hdr.Raw) < protocol.MinClientHelloSize {
+		if len(packet)-hdr.ParsedLen < protocol.MinClientHelloSize {
 			return errors.New("dropping small packet with unknown version")
 		}
 		s.logger.Infof("Client offered version %s, sending Version Negotiation Packet", hdr.Version)
@@ -396,7 +395,7 @@ func (s *server) handleGQUICPacket(hdr *wire.Header, packet []byte, remoteAddr n
 	if !sessionKnown {
 		// This is (potentially) a Client Hello.
 		// Make sure it has the minimum required size before spending any more ressources on it.
-		if len(packet)-len(hdr.Raw) < protocol.MinClientHelloSize {
+		if len(packet)-hdr.ParsedLen < protocol.MinClientHelloSize {
 			return errors.New("dropping small packet for unknown connection")
 		}
 

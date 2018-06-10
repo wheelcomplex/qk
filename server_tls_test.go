@@ -67,7 +67,7 @@ var _ = Describe("Stateless TLS handling", func() {
 		// pad the packet such that is has exactly the required minimum size
 		buf.Write(bytes.Repeat([]byte{0}, protocol.MinInitialPacketSize-aead.Overhead()-buf.Len()))
 		raw := buf.Bytes()
-		hdr.Raw = raw[:hdrLen-4]
+		hdr.ParsedLen = hdrLen - 4
 		data := aead.Seal(nil, raw[hdrLen:], pn, raw[:hdrLen])
 		data = append(raw[:hdrLen], data...)
 		Expect(data).To(HaveLen(protocol.MinInitialPacketSize))
@@ -81,10 +81,10 @@ var _ = Describe("Stateless TLS handling", func() {
 		pn, _, err := wire.ReadPacketNumber(r, conn.dataWritten.Bytes()[0], protocol.VersionTLS)
 		Expect(err).ToNot(HaveOccurred())
 		hdrLen := len(data) - r.Len()
-		hdr.Raw = data[:hdrLen]
+		aad := data[:hdrLen]
 		aead, err := crypto.NewNullAEAD(protocol.PerspectiveClient, hdr.SrcConnectionID, protocol.VersionTLS)
 		Expect(err).ToNot(HaveOccurred())
-		payload, err := aead.Open(nil, data[hdrLen:], pn, hdr.Raw)
+		payload, err := aead.Open(nil, data[hdrLen:], pn, aad)
 		Expect(err).ToNot(HaveOccurred())
 		return hdr, payload
 	}

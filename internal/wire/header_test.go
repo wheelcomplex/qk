@@ -28,12 +28,13 @@ var _ = Describe("Header", func() {
 				SrcConnectionID:  protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				KeyPhase:         1,
 			}
-			err := h.writeHeader(buf, 1, protocol.PacketNumberLen1)
+			err := h.writeHeader(buf, 1, protocol.PacketNumberLen2)
 			Expect(err).ToNot(HaveOccurred())
 			hdr, err := ParseHeaderSentByClient(bytes.NewReader(buf.Bytes()))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(hdr.KeyPhase).To(BeEquivalentTo(1))
 			Expect(hdr.IsPublicHeader).To(BeFalse())
+			Expect(hdr.ParsedLen).To(Equal(buf.Len() - 2 /* packet number len */))
 		})
 
 		It("parses an IETF draft header, when the version is not known, but it has Long Header format", func() {
@@ -52,6 +53,7 @@ var _ = Describe("Header", func() {
 			Expect(hdr.Type).To(Equal(protocol.PacketType0RTT))
 			Expect(hdr.IsPublicHeader).To(BeFalse())
 			Expect(hdr.Version).To(Equal(protocol.VersionNumber(0x1234)))
+			Expect(hdr.ParsedLen).To(Equal(buf.Len() - 1 /* packet number len */))
 		})
 
 		It("reads the packet number for an IETF draft header", func() {
