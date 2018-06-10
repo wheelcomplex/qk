@@ -24,21 +24,20 @@ var _ = Describe("Packet Unpacker (for gQUIC)", func() {
 		hdr = &wire.Header{
 			PacketNumber:    10,
 			PacketNumberLen: 1,
-			Raw:             []byte{0x04, 0x4c, 0x01},
+			ParsedLen:       3,
 		}
 		unpacker = newPacketUnpackerGQUIC(aead, versionGQUICFrames).(*packetUnpackerGQUIC)
 	})
 
 	It("errors if the packet doesn't contain any payload", func() {
-		data := []byte("foobar")
-		aead.EXPECT().Open(gomock.Any(), []byte("foobar"), hdr.PacketNumber, hdr.Raw).Return([]byte{}, protocol.EncryptionForwardSecure, nil)
-		_, err := unpacker.Unpack(hdr, append(hdr.Raw, data...))
+		aead.EXPECT().Open(gomock.Any(), []byte("bar"), hdr.PacketNumber, []byte("foo")).Return([]byte{}, protocol.EncryptionForwardSecure, nil)
+		_, err := unpacker.Unpack(hdr, []byte("foobar"))
 		Expect(err).To(MatchError(qerr.MissingPayload))
 	})
 
 	It("saves the encryption level", func() {
-		aead.EXPECT().Open(gomock.Any(), gomock.Any(), hdr.PacketNumber, hdr.Raw).Return([]byte{0}, protocol.EncryptionSecure, nil)
-		packet, err := unpacker.Unpack(hdr, hdr.Raw)
+		aead.EXPECT().Open(gomock.Any(), gomock.Any(), hdr.PacketNumber, gomock.Any()).Return([]byte{0}, protocol.EncryptionSecure, nil)
+		packet, err := unpacker.Unpack(hdr, []byte("foobar"))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(packet.encryptionLevel).To(Equal(protocol.EncryptionSecure))
 	})
@@ -47,8 +46,8 @@ var _ = Describe("Packet Unpacker (for gQUIC)", func() {
 		buf := &bytes.Buffer{}
 		(&wire.PingFrame{}).Write(buf, versionGQUICFrames)
 		(&wire.BlockedFrame{}).Write(buf, versionGQUICFrames)
-		aead.EXPECT().Open(gomock.Any(), gomock.Any(), hdr.PacketNumber, hdr.Raw).Return(buf.Bytes(), protocol.EncryptionForwardSecure, nil)
-		packet, err := unpacker.Unpack(hdr, hdr.Raw)
+		aead.EXPECT().Open(gomock.Any(), gomock.Any(), hdr.PacketNumber, gomock.Any()).Return(buf.Bytes(), protocol.EncryptionForwardSecure, nil)
+		packet, err := unpacker.Unpack(hdr, []byte("foobar"))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(packet.frames).To(Equal([]wire.Frame{&wire.PingFrame{}, &wire.BlockedFrame{}}))
 	})
@@ -66,22 +65,22 @@ var _ = Describe("Packet Unpacker (for IETF QUIC)", func() {
 		hdr = &wire.Header{
 			PacketNumber:    10,
 			PacketNumberLen: 1,
-			Raw:             []byte{0x04, 0x4c, 0x01},
+			ParsedLen:       3,
 		}
 		unpacker = newPacketUnpacker(aead, versionIETFFrames).(*packetUnpacker)
 	})
 
 	It("errors if the packet doesn't contain any payload", func() {
-		data := []byte("foobar")
-		aead.EXPECT().Open1RTT(gomock.Any(), []byte("foobar"), hdr.PacketNumber, hdr.Raw).Return([]byte{}, nil)
-		_, err := unpacker.Unpack(hdr, append(hdr.Raw, data...))
+		data := []byte("foo")
+		aead.EXPECT().Open1RTT(gomock.Any(), []byte{}, hdr.PacketNumber, []byte("foo")).Return([]byte{}, nil)
+		_, err := unpacker.Unpack(hdr, data)
 		Expect(err).To(MatchError(qerr.MissingPayload))
 	})
 
 	It("opens handshake packets", func() {
 		hdr.IsLongHeader = true
-		aead.EXPECT().OpenHandshake(gomock.Any(), gomock.Any(), hdr.PacketNumber, hdr.Raw).Return([]byte{0}, nil)
-		packet, err := unpacker.Unpack(hdr, hdr.Raw)
+		aead.EXPECT().OpenHandshake(gomock.Any(), []byte("bar"), hdr.PacketNumber, []byte("foo")).Return([]byte{0}, nil)
+		packet, err := unpacker.Unpack(hdr, []byte("foobar"))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(packet.encryptionLevel).To(Equal(protocol.EncryptionUnencrypted))
 	})
@@ -90,8 +89,8 @@ var _ = Describe("Packet Unpacker (for IETF QUIC)", func() {
 		buf := &bytes.Buffer{}
 		(&wire.PingFrame{}).Write(buf, versionIETFFrames)
 		(&wire.BlockedFrame{}).Write(buf, versionIETFFrames)
-		aead.EXPECT().Open1RTT(gomock.Any(), gomock.Any(), hdr.PacketNumber, hdr.Raw).Return(buf.Bytes(), nil)
-		packet, err := unpacker.Unpack(hdr, hdr.Raw)
+		aead.EXPECT().Open1RTT(gomock.Any(), gomock.Any(), hdr.PacketNumber, gomock.Any()).Return(buf.Bytes(), nil)
+		packet, err := unpacker.Unpack(hdr, []byte("foobar"))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(packet.frames).To(Equal([]wire.Frame{&wire.PingFrame{}, &wire.BlockedFrame{}}))
 	})

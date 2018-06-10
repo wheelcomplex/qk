@@ -16,7 +16,11 @@ import (
 )
 
 var _ = Describe("Packing and unpacking Initial packets", func() {
-	var aead crypto.AEAD
+	var (
+		aead   crypto.AEAD
+		hdrRaw []byte
+	)
+
 	connID := protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8}
 	ver := protocol.VersionTLS
 	hdr := &wire.Header{
@@ -33,11 +37,10 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 		var err error
 		aead, err = crypto.NewNullAEAD(protocol.PerspectiveServer, connID, ver)
 		Expect(err).ToNot(HaveOccurred())
-		// set hdr.Raw
 		buf := &bytes.Buffer{}
-		err = hdr.Write(buf, protocol.PerspectiveClient, ver)
-		Expect(err).ToNot(HaveOccurred())
-		hdr.Raw = buf.Bytes()
+		Expect(hdr.Write(buf, protocol.PerspectiveClient, ver)).To(Succeed())
+		hdr.ParsedLen = buf.Len()
+		hdrRaw = buf.Bytes()
 	})
 
 	Context("generating a mint.Config", func() {
@@ -93,8 +96,7 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 
 	Context("unpacking", func() {
 		packPacket := func(frames []wire.Frame) []byte {
-			buf := &bytes.Buffer{}
-			buf.Write(hdr.Raw)
+			buf := bytes.NewBuffer(hdrRaw)
 			payloadStartIndex := buf.Len()
 			aeadCl, err := crypto.NewNullAEAD(protocol.PerspectiveClient, connID, ver)
 			Expect(err).ToNot(HaveOccurred())
@@ -104,7 +106,7 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 			}
 			raw := buf.Bytes()
 			data := aeadCl.Seal(raw[payloadStartIndex:payloadStartIndex], raw[payloadStartIndex:], hdr.PacketNumber, raw[:payloadStartIndex])
-			return append(raw[:len(hdr.Raw)], data...)
+			return append(raw[:hdr.ParsedLen], data...)
 		}
 
 		It("unpacks a packet", func() {
@@ -156,7 +158,7 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 			Expect(err).ToNot(HaveOccurred())
 			aeadCl, err := crypto.NewNullAEAD(protocol.PerspectiveClient, connID, ver)
 			Expect(err).ToNot(HaveOccurred())
-			decrypted, err := aeadCl.Open(nil, data[len(hdr.Raw):], hdr.PacketNumber, hdr.Raw)
+			decrypted, err := aeadCl.Open(nil, data[hdr.ParsedLen:], hdr.PacketNumber, data[:hdr.ParsedLen])
 			Expect(err).ToNot(HaveOccurred())
 			frame, err := wire.ParseNextFrame(bytes.NewReader(decrypted), hdr.PacketNumber, hdr.PacketNumberLen, versionIETFFrames)
 			Expect(err).ToNot(HaveOccurred())

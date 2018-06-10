@@ -396,7 +396,7 @@ func (c *client) handleIETFQUICPacket(p *receivedPacket) error {
 		if protocol.ByteCount(len(p.data)) < hdr.PayloadLen {
 			return fmt.Errorf("packet payload (%d bytes) is smaller than the expected payload length (%d bytes)", len(p.data), hdr.PayloadLen)
 		}
-		p.data = p.data[:len(hdr.Raw)+int(hdr.PayloadLen)]
+		p.data = p.data[:hdr.ParsedLen+int(hdr.PayloadLen)]
 		// TODO(#1312): implement parsing of compound packets
 	}
 

@@ -58,17 +58,17 @@ var _ = Describe("Stateless TLS handling", func() {
 		}
 		err := hdr.Write(hdrBuf, protocol.PerspectiveClient, protocol.VersionTLS)
 		Expect(err).ToNot(HaveOccurred())
-		hdr.Raw = hdrBuf.Bytes()
+		hdr.ParsedLen = hdrBuf.Len()
 		aead, err := crypto.NewNullAEAD(protocol.PerspectiveClient, hdr.DestConnectionID, protocol.VersionTLS)
 		Expect(err).ToNot(HaveOccurred())
 		buf := &bytes.Buffer{}
 		err = f.Write(buf, protocol.VersionTLS)
 		Expect(err).ToNot(HaveOccurred())
 		// pad the packet such that is has exactly the required minimum size
-		buf.Write(bytes.Repeat([]byte{0}, protocol.MinInitialPacketSize-len(hdr.Raw)-aead.Overhead()-buf.Len()))
-		data := aead.Seal(nil, buf.Bytes(), 1, hdr.Raw)
-		Expect(len(hdr.Raw) + len(data)).To(Equal(protocol.MinInitialPacketSize))
-		return hdr, append(hdr.Raw, data...)
+		buf.Write(bytes.Repeat([]byte{0}, protocol.MinInitialPacketSize-hdr.ParsedLen-aead.Overhead()-buf.Len()))
+		data := aead.Seal(nil, buf.Bytes(), 1, hdrBuf.Bytes())
+		Expect(hdr.ParsedLen + len(data)).To(Equal(protocol.MinInitialPacketSize))
+		return hdr, append(hdrBuf.Bytes(), data...)
 	}
 
 	unpackPacket := func(data []byte, clientDestConnID protocol.ConnectionID) (*wire.Header, []byte) {
@@ -77,12 +77,12 @@ var _ = Describe("Stateless TLS handling", func() {
 		Expect(err).ToNot(HaveOccurred())
 		hdr, err := iHdr.Parse(r, protocol.PerspectiveServer, versionIETFFrames)
 		Expect(err).ToNot(HaveOccurred())
-		hdr.Raw = data[:len(data)-r.Len()]
+		hdrRaw := data[:len(data)-r.Len()]
 		var payload []byte
 		if r.Len() > 0 {
 			aead, err := crypto.NewNullAEAD(protocol.PerspectiveClient, clientDestConnID, protocol.VersionTLS)
 			Expect(err).ToNot(HaveOccurred())
-			payload, err = aead.Open(nil, data[len(data)-r.Len():], hdr.PacketNumber, hdr.Raw)
+			payload, err = aead.Open(nil, data[len(data)-r.Len():], hdr.PacketNumber, hdrRaw)
 			Expect(err).ToNot(HaveOccurred())
 		}
 		return hdr, payload

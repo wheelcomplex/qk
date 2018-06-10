@@ -346,7 +346,7 @@ var _ = Describe("Server", func() {
 				Version:          versionIETFFrames,
 			}
 			Expect(hdr.Write(b, protocol.PerspectiveClient, versionIETFFrames)).To(Succeed())
-			hdr.Raw = b.Bytes()
+			hdr.ParsedLen = b.Len()
 			sess := NewMockQuicSession(mockCtrl)
 			sess.EXPECT().GetVersion().Return(versionIETFFrames)
 			sess.EXPECT().handlePacket(gomock.Any()).Do(func(packet *receivedPacket) {

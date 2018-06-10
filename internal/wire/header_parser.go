@@ -17,17 +17,22 @@ type InvariantHeader struct {
 	SrcConnectionID  protocol.ConnectionID
 	DestConnectionID protocol.ConnectionID
 
-	typeByte byte
+	typeByte       byte
+	startReaderLen int // used for determining the length of the header
 }
 
 // ParseInvariantHeader parses the version independent part of the header
 func ParseInvariantHeader(b *bytes.Reader, shortHeaderConnIDLen int) (*InvariantHeader, error) {
+	startReaderLen := b.Len()
 	typeByte, err := b.ReadByte()
 	if err != nil {
 		return nil, err
 	}
 
-	h := &InvariantHeader{typeByte: typeByte}
+	h := &InvariantHeader{
+		typeByte:       typeByte,
+		startReaderLen: startReaderLen,
+	}
 	h.IsLongHeader = typeByte&0x80 > 0
 
 	// If this is not a Long Header, it could either be a Public Header or a Short Header.
@@ -75,6 +80,15 @@ func ParseInvariantHeader(b *bytes.Reader, shortHeaderConnIDLen int) (*Invariant
 
 // Parse parses the version dependent part of the header
 func (iv *InvariantHeader) Parse(b *bytes.Reader, sentBy protocol.Perspective, ver protocol.VersionNumber) (*Header, error) {
+	hdr, err := iv.parseImpl(b, sentBy, ver)
+	if err != nil {
+		return nil, err
+	}
+	hdr.ParsedLen = iv.startReaderLen - b.Len()
+	return hdr, nil
+}
+
+func (iv *InvariantHeader) parseImpl(b *bytes.Reader, sentBy protocol.Perspective, ver protocol.VersionNumber) (*Header, error) {
 	if iv.IsLongHeader {
 		if iv.Version == 0 { // Version Negotiation Packet
 			return iv.parseVersionNegotiationPacket(b)
@@ -91,7 +105,6 @@ func (iv *InvariantHeader) Parse(b *bytes.Reader, sentBy protocol.Perspective, v
 		return iv.parsePublicHeader(b, sentBy, ver)
 	}
 	return iv.parseShortHeader(b)
-
 }
 
 func (iv *InvariantHeader) toHeader() *Header {

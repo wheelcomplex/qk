@@ -109,7 +109,7 @@ func tlsToMintConfig(tlsConf *tls.Config, pers protocol.Perspective) (*mint.Conf
 // unpackInitialOrRetryPacket unpacks packets Initial and Retry packets
 // These packets must contain a STREAM_FRAME for the crypto stream, starting at offset 0.
 func unpackInitialPacket(aead crypto.AEAD, hdr *wire.Header, data []byte, logger utils.Logger, version protocol.VersionNumber) (*wire.StreamFrame, error) {
-	decrypted, err := aead.Open(data[:0], data[len(hdr.Raw):], hdr.PacketNumber, hdr.Raw)
+	decrypted, err := aead.Open(data[:0], data[hdr.ParsedLen:], hdr.PacketNumber, data[:hdr.ParsedLen])
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func unpackInitialPacket(aead crypto.AEAD, hdr *wire.Header, data []byte, logger
 		return nil, errors.New("received stream data with non-zero offset")
 	}
 	if logger.Debug() {
-		logger.Debugf("<- Reading packet 0x%x (%d bytes) for connection %s", hdr.PacketNumber, len(data)+len(hdr.Raw), hdr.DestConnectionID)
+		logger.Debugf("<- Reading packet 0x%x (%d bytes) for connection %s", hdr.PacketNumber, len(data)+hdr.ParsedLen, hdr.DestConnectionID)
 		hdr.Log(logger)
 		wire.LogFrame(logger, frame, false)
 	}

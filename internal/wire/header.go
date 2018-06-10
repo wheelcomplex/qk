@@ -14,7 +14,7 @@ import (
 type Header struct {
 	IsPublicHeader bool
 
-	Raw []byte
+	ParsedLen int
 
 	Version protocol.VersionNumber
 
