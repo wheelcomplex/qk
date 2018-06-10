@@ -33,7 +33,7 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 		Expect(err).ToNot(HaveOccurred())
 		// set hdr.Raw
 		buf := &bytes.Buffer{}
-		err = hdr.Write(buf, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer, ver)
+		err = hdr.Write(buf, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer)
 		Expect(err).ToNot(HaveOccurred())
 		hdr.Raw = buf.Bytes()
 	})
@@ -92,7 +92,7 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 	Context("unpacking", func() {
 		packPacket := func(frames []wire.Frame, pn protocol.PacketNumber) []byte {
 			buf := &bytes.Buffer{}
-			err := hdr.Write(buf, pn, protocol.PacketNumberLen2, protocol.PerspectiveClient, ver)
+			err := hdr.Write(buf, pn, protocol.PacketNumberLen2, protocol.PerspectiveClient)
 			Expect(err).ToNot(HaveOccurred())
 			hdrLen := buf.Len()
 			payloadStartIndex := buf.Len()
@@ -159,7 +159,7 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 			}
 			buf := &bytes.Buffer{}
 			pn := protocol.PacketNumber(1337)
-			err := hdr.Write(buf, pn, protocol.PacketNumberLen2, protocol.PerspectiveServer, ver)
+			err := hdr.Write(buf, pn, protocol.PacketNumberLen2, protocol.PerspectiveServer)
 			Expect(err).ToNot(HaveOccurred())
 			hdr.Raw = buf.Bytes()
 			f := &wire.StreamFrame{

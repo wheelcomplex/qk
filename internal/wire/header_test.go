@@ -203,7 +203,7 @@ var _ = Describe("Header", func() {
 				DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				SrcConnectionID:  protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 			}
-			err := hdr.Write(buf, 0x1337, protocol.PacketNumberLen2, protocol.PerspectiveServer, versionPublicHeader)
+			err := hdr.Write(buf, 0x1337, protocol.PacketNumberLen2, protocol.PerspectiveServer)
 			Expect(err).ToNot(HaveOccurred())
 			r := bytes.NewReader(buf.Bytes())
 			_, err = parsePublicHeader(r, protocol.PerspectiveServer)
@@ -222,8 +222,9 @@ var _ = Describe("Header", func() {
 				DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				SrcConnectionID:  protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				KeyPhase:         1,
+				Version:          versionIETFHeader,
 			}
-			err := hdr.Write(buf, 0x1337, protocol.PacketNumberLen2, protocol.PerspectiveServer, versionIETFHeader)
+			err := hdr.Write(buf, 0x1337, protocol.PacketNumberLen2, protocol.PerspectiveServer)
 			Expect(err).ToNot(HaveOccurred())
 			r := bytes.NewReader(buf.Bytes())
 			_, err = ParseHeaderSentByServer(r)
@@ -237,7 +238,7 @@ var _ = Describe("Header", func() {
 	})
 
 	Context("getting the length", func() {
-		It("get the length of a gQUIC Public Header", func() {
+		It("gets the length of a gQUIC Public Header", func() {
 			buf := &bytes.Buffer{}
 			hdr := &Header{
 				DestConnectionID:     protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
@@ -245,31 +246,28 @@ var _ = Describe("Header", func() {
 				DiversificationNonce: bytes.Repeat([]byte{'f'}, 32),
 			}
 			pnLen := protocol.PacketNumberLen4
-			err := hdr.Write(buf, 1, pnLen, protocol.PerspectiveServer, versionPublicHeader)
+			err := hdr.Write(buf, 1, pnLen, protocol.PerspectiveServer)
 			Expect(err).ToNot(HaveOccurred())
 			publicHeaderLen := hdr.getPublicHeaderLength(protocol.PerspectiveServer)
-			ietfHeaderLen := hdr.getHeaderLength()
-			Expect(publicHeaderLen).ToNot(Equal(ietfHeaderLen)) // make sure we can distinguish between the two header types
-			len := hdr.GetLength(protocol.PerspectiveServer, versionPublicHeader)
+			len := hdr.GetLength(protocol.PerspectiveServer)
 			Expect(len).To(Equal(publicHeaderLen))
 		})
 
-		It("get the length of a a IETF draft header", func() {
+		It("gets the length of a a IETF draft header", func() {
 			buf := &bytes.Buffer{}
 			hdr := &Header{
 				IsLongHeader:     true,
 				DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				SrcConnectionID:  protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				KeyPhase:         1,
+				Version:          versionIETFHeader,
 			}
 			pnLen := protocol.PacketNumberLen4
-			err := hdr.Write(buf, 1, pnLen, protocol.PerspectiveServer, versionIETFHeader)
+			err := hdr.Write(buf, 1, pnLen, protocol.PerspectiveServer)
 			Expect(err).ToNot(HaveOccurred())
-			publicHeaderLen := hdr.getPublicHeaderLength(protocol.PerspectiveServer)
 			ietfHeaderLen := hdr.getHeaderLength()
 			Expect(err).ToNot(HaveOccurred())
-			Expect(publicHeaderLen).ToNot(Equal(ietfHeaderLen)) // make sure we can distinguish between the two header types
-			len := hdr.GetLength(protocol.PerspectiveServer, versionIETFHeader)
+			len := hdr.GetLength(protocol.PerspectiveServer)
 			Expect(len).To(Equal(ietfHeaderLen))
 		})
 	})

@@ -99,9 +99,8 @@ func (h *Header) Write(
 	pn protocol.PacketNumber,
 	pnLen protocol.PacketNumberLen,
 	pers protocol.Perspective,
-	version protocol.VersionNumber,
 ) error {
-	if !version.UsesTLS() {
+	if !h.Version.UsesTLS() {
 		h.IsPublicHeader = true // save that this is a Public Header, so we can log it correctly later
 		return h.writePublicHeader(b, pn, pnLen, pers)
 	}
@@ -109,8 +108,8 @@ func (h *Header) Write(
 }
 
 // GetLength determines the length of the Header.
-func (h *Header) GetLength(pers protocol.Perspective, version protocol.VersionNumber) protocol.ByteCount {
-	if !version.UsesTLS() {
+func (h *Header) GetLength(pers protocol.Perspective) protocol.ByteCount {
+	if !h.Version.UsesTLS() {
 		return h.getPublicHeaderLength(pers)
 	}
 	return h.getHeaderLength()

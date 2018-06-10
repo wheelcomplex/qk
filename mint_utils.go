@@ -161,7 +161,7 @@ func packUnencryptedPacket(
 ) ([]byte, error) {
 	raw := *getPacketBuffer()
 	buffer := bytes.NewBuffer(raw[:0])
-	if err := hdr.Write(buffer, pn, protocol.PacketNumberLen2, pers, hdr.Version); err != nil {
+	if err := hdr.Write(buffer, pn, protocol.PacketNumberLen2, pers); err != nil {
 		return nil, err
 	}
 	payloadStartIndex := buffer.Len()

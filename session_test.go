@@ -1288,7 +1288,7 @@ var _ = Describe("Session", func() {
 					SrcConnectionID:  protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 					DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				}
-				err := hdr.Write(buf, protocol.PacketNumber(i+1), protocol.PacketNumberLen4, protocol.PerspectiveClient, versionGQUICFrames)
+				err := hdr.Write(buf, protocol.PacketNumber(i+1), protocol.PacketNumberLen4, protocol.PerspectiveClient)
 				Expect(err).ToNot(HaveOccurred())
 				data := append(buf.Bytes(), []byte("foobar")...)
 				sess.handlePacket(&receivedPacket{

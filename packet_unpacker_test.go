@@ -24,8 +24,9 @@ var _ = Describe("Packet Unpacker (for gQUIC)", func() {
 		hdr := &wire.Header{
 			SrcConnectionID:  connID,
 			DestConnectionID: connID,
+			Version:          versionGQUICFrames,
 		}
-		err := hdr.Write(buf, pn, protocol.PacketNumberLen4, protocol.PerspectiveServer, versionGQUICFrames)
+		err := hdr.Write(buf, pn, protocol.PacketNumberLen4, protocol.PerspectiveServer)
 		Expect(err).ToNot(HaveOccurred())
 		hdr.Raw = buf.Bytes()[:buf.Len()-4]
 		return hdr, buf.Bytes()
@@ -81,8 +82,9 @@ var _ = Describe("Packet Unpacker (for IETF QUIC)", func() {
 		hdr := &wire.Header{
 			SrcConnectionID:  connID,
 			DestConnectionID: connID,
+			Version:          versionIETFFrames,
 		}
-		err := hdr.Write(buf, pn, protocol.PacketNumberLen4, protocol.PerspectiveServer, versionIETFFrames)
+		err := hdr.Write(buf, pn, protocol.PacketNumberLen4, protocol.PerspectiveServer)
 		Expect(err).ToNot(HaveOccurred())
 		hdr.Raw = buf.Bytes()[:buf.Len()-4]
 		return hdr, buf.Bytes()

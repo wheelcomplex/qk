@@ -144,8 +144,8 @@ var _ = Describe("IETF QUIC Header", func() {
 					IsLongHeader:    true,
 					Type:            42,
 					SrcConnectionID: srcConnID,
-					Version:         0x10203040,
-				}).Write(buf, 1, protocol.PacketNumberLen1, protocol.PerspectiveClient, protocol.VersionTLS)
+					Version:         versionIETFFrames,
+				}).Write(buf, 1, protocol.PacketNumberLen1, protocol.PerspectiveClient)
 				Expect(err).ToNot(HaveOccurred())
 				b := bytes.NewReader(buf.Bytes())
 				_, err = parseHeader(b)

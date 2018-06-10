@@ -56,7 +56,7 @@ var _ = Describe("Stateless TLS handling", func() {
 		pn := protocol.PacketNumber(1)
 		// data, err := packUnencryptedPacket(aead, hdr, pn, f, protocol.PerspectiveClient, utils.DefaultLogger)
 		// Expect(err).ToNot(HaveOccurred())
-		err := hdr.Write(buf, pn, protocol.PacketNumberLen4, protocol.PerspectiveClient, protocol.VersionTLS)
+		err := hdr.Write(buf, pn, protocol.PacketNumberLen4, protocol.PerspectiveClient)
 		Expect(err).ToNot(HaveOccurred())
 		hdrLen := buf.Len()
 		aead, err := crypto.NewNullAEAD(protocol.PerspectiveClient, hdr.DestConnectionID, protocol.VersionTLS)

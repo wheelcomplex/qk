@@ -37,7 +37,7 @@ var _ = Describe("Client", func() {
 			DestConnectionID: connID,
 			SrcConnectionID:  connID,
 		}
-		err := hdr.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer, protocol.VersionWhatever)
+		err := hdr.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer)
 		Expect(err).ToNot(HaveOccurred())
 		return b.Bytes()
 	}
@@ -355,7 +355,7 @@ var _ = Describe("Client", func() {
 					SrcConnectionID:  connID,
 				}
 				b := &bytes.Buffer{}
-				err := ph.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer, protocol.VersionWhatever)
+				err := ph.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer)
 				Expect(err).ToNot(HaveOccurred())
 				err = cl.handlePacket(nil, b.Bytes())
 				Expect(err).ToNot(HaveOccurred())
@@ -509,7 +509,7 @@ var _ = Describe("Client", func() {
 			DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 			Version:          versionIETFFrames,
 		}
-		Expect(hdr.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveClient, versionIETFFrames)).To(Succeed())
+		Expect(hdr.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveClient)).To(Succeed())
 		cl.handlePacket(addr, append(b.Bytes(), make([]byte, 456)...))
 	})
 
@@ -522,7 +522,7 @@ var _ = Describe("Client", func() {
 			SrcConnectionID:  connID,
 			DestConnectionID: connID,
 			Version:          versionIETFFrames,
-		}).Write(b, 1, protocol.PacketNumberLen4, protocol.PerspectiveClient, versionIETFFrames)
+		}).Write(b, 1, protocol.PacketNumberLen4, protocol.PerspectiveClient)
 		Expect(err).ToNot(HaveOccurred())
 		sess := NewMockPacketHandler(mockCtrl)
 		sess.EXPECT().handlePacket(gomock.Any()).Do(func(packet *receivedPacket) {
@@ -543,7 +543,7 @@ var _ = Describe("Client", func() {
 			DestConnectionID: connID,
 			Version:          versionIETFFrames,
 		}
-		Expect(hdr.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer, versionIETFFrames)).To(Succeed())
+		Expect(hdr.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer)).To(Succeed())
 		err := cl.handlePacket(addr, append(b.Bytes(), make([]byte, 456)...))
 		Expect(err).To(MatchError("Received unsupported packet type: Initial"))
 	})
@@ -556,7 +556,7 @@ var _ = Describe("Client", func() {
 			OmitConnectionID: true,
 			SrcConnectionID:  connID,
 			DestConnectionID: connID,
-		}).Write(buf, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer, versionGQUICFrames)
+		}).Write(buf, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer)
 		Expect(err).ToNot(HaveOccurred())
 		err = cl.handlePacket(addr, buf.Bytes())
 		Expect(err).To(MatchError("received packet with truncated connection ID, but didn't request truncation"))
@@ -573,7 +573,7 @@ var _ = Describe("Client", func() {
 			DestConnectionID: connID2,
 			SrcConnectionID:  connID,
 			Version:          versionIETFFrames,
-		}).Write(buf, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer, versionIETFFrames)
+		}).Write(buf, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer)
 		Expect(err).ToNot(HaveOccurred())
 		err = cl.handlePacket(addr, buf.Bytes())
 		Expect(err).To(MatchError(fmt.Sprintf("received a packet with an unexpected connection ID (0x0807060504030201, expected %s)", connID)))
@@ -656,7 +656,7 @@ var _ = Describe("Client", func() {
 				SrcConnectionID:  connID,
 			}
 			b := &bytes.Buffer{}
-			err := ph.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer, cl.version)
+			err := ph.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveServer)
 			Expect(err).ToNot(HaveOccurred())
 			packetConn.dataToRead <- b.Bytes()
 

@@ -313,7 +313,7 @@ var _ = Describe("Server", func() {
 				DestConnectionID: protocol.ConnectionID{1, 2, 3, 4, 5, 6, 7, 8},
 				Version:          versionIETFFrames,
 			}
-			Expect(hdr.Write(b, 1, protocol.PacketNumberLen2, protocol.PerspectiveClient, versionIETFFrames)).To(Succeed())
+			Expect(hdr.Write(b, 1, protocol.PacketNumberLen2, protocol.PerspectiveClient)).To(Succeed())
 			err := serv.handlePacket(nil, append(b.Bytes(), make([]byte, 456)...))
 			Expect(err).To(MatchError("packet payload (458 bytes) is smaller than the expected payload length (1000 bytes)"))
 		})
@@ -328,7 +328,7 @@ var _ = Describe("Server", func() {
 				DestConnectionID: connID,
 				Version:          versionIETFFrames,
 			}
-			Expect(hdr.Write(b, 0xcafe, protocol.PacketNumberLen4, protocol.PerspectiveClient, versionIETFFrames)).To(Succeed())
+			Expect(hdr.Write(b, 0xcafe, protocol.PacketNumberLen4, protocol.PerspectiveClient)).To(Succeed())
 			sess := NewMockPacketHandler(mockCtrl)
 			sess.EXPECT().handlePacket(gomock.Any()).Do(func(packet *receivedPacket) {
 				Expect(packet.data).To(HaveLen(123 + b.Len() - 4 /* packet number len */))
@@ -351,7 +351,7 @@ var _ = Describe("Server", func() {
 				DestConnectionID: connID,
 				Version:          versionIETFFrames,
 			}
-			Expect(hdr.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveClient, versionIETFFrames)).To(Succeed())
+			Expect(hdr.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveClient)).To(Succeed())
 			err := serv.handlePacket(nil, append(b.Bytes(), make([]byte, 456)...))
 			Expect(err).To(MatchError("Received unsupported packet type: Retry"))
 		})
@@ -368,8 +368,9 @@ var _ = Describe("Server", func() {
 				VersionFlag:      true,
 				DestConnectionID: connID,
 				SrcConnectionID:  connID,
+				Version:          13, /* not a valid QUIC version */
 			}
-			err := hdr.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveClient, 13 /* not a valid QUIC version */)
+			err := hdr.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveClient)
 			Expect(err).ToNot(HaveOccurred())
 			b.Write(bytes.Repeat([]byte{0}, protocol.MinClientHelloSize)) // add a fake CHLO
 			serv.conn = conn
@@ -385,8 +386,9 @@ var _ = Describe("Server", func() {
 				VersionFlag:      true,
 				DestConnectionID: connID,
 				SrcConnectionID:  connID,
+				Version:          13, /* not a valid QUIC version */
 			}
-			err := hdr.Write(b, 1, protocol.PacketNumberLen4, protocol.PerspectiveClient, 13 /* not a valid QUIC version */)
+			err := hdr.Write(b, 1, protocol.PacketNumberLen4, protocol.PerspectiveClient)
 			Expect(err).ToNot(HaveOccurred())
 			b.Write(bytes.Repeat([]byte{0}, protocol.MinClientHelloSize-4 /* packet number len */ -1)) // this packet is 1 byte too small
 			serv.conn = conn
@@ -463,8 +465,9 @@ var _ = Describe("Server", func() {
 			VersionFlag:      true,
 			DestConnectionID: connID,
 			SrcConnectionID:  connID,
+			Version:          13, /* not a valid QUIC version */
 		}
-		err := hdr.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveClient, 13 /* not a valid QUIC version */)
+		err := hdr.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveClient)
 		Expect(err).ToNot(HaveOccurred())
 		b.Write(bytes.Repeat([]byte{0}, protocol.MinClientHelloSize)) // add a fake CHLO
 		conn.dataToRead <- b.Bytes()
@@ -503,16 +506,17 @@ var _ = Describe("Server", func() {
 			IsLongHeader:     true,
 			DestConnectionID: connID,
 			SrcConnectionID:  connID,
-			Version:          0x1234,
+			Version:          protocol.VersionTLS,
 			Length:           protocol.MinInitialPacketSize,
 		}
-		err := hdr.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveClient, protocol.VersionTLS)
+		err := hdr.Write(b, 1, protocol.PacketNumberLen1, protocol.PerspectiveClient)
 		Expect(err).ToNot(HaveOccurred())
 		b.Write(bytes.Repeat([]byte{0}, protocol.MinInitialPacketSize)) // add a fake CHLO
 		conn.dataToRead <- b.Bytes()
 		conn.dataReadFrom = udpAddr
 		ln, err := Listen(conn, testdata.GetTLSConfig(), config)
 		Expect(err).ToNot(HaveOccurred())
+		ln.(*server).serverTLS.supportedVersions = nil
 
 		done := make(chan struct{})
 		go func() {
@@ -546,7 +550,7 @@ var _ = Describe("Server", func() {
 			SrcConnectionID:  connID,
 			Version:          protocol.VersionTLS,
 		}
-		err := hdr.Write(b, 0x55, protocol.PacketNumberLen1, protocol.PerspectiveClient, protocol.VersionTLS)
+		err := hdr.Write(b, 0x55, protocol.PacketNumberLen1, protocol.PerspectiveClient)
 		Expect(err).ToNot(HaveOccurred())
 		b.Write(bytes.Repeat([]byte{0}, protocol.MinClientHelloSize)) // add a fake CHLO
 		conn.dataToRead <- b.Bytes()
@@ -567,7 +571,7 @@ var _ = Describe("Server", func() {
 			SrcConnectionID:  connID,
 			Version:          protocol.VersionTLS,
 		}
-		err := hdr.Write(b, 0x55, protocol.PacketNumberLen1, protocol.PerspectiveClient, protocol.VersionTLS)
+		err := hdr.Write(b, 0x55, protocol.PacketNumberLen1, protocol.PerspectiveClient)
 		Expect(err).ToNot(HaveOccurred())
 		conn.dataToRead <- b.Bytes()
 		conn.dataReadFrom = udpAddr
