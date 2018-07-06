@@ -109,18 +109,18 @@ handshakeLoop:
 	return nil
 }
 
-func (h *cryptoSetupTLS) OpenHandshake(dst, src []byte, packetNumber protocol.PacketNumber, associatedData []byte) ([]byte, error) {
-	return h.nullAEAD.Open(dst, src, packetNumber, associatedData)
+func (h *cryptoSetupTLS) GetHandshakeOpener() Opener {
+	return h.nullAEAD
 }
 
-func (h *cryptoSetupTLS) Open1RTT(dst, src []byte, packetNumber protocol.PacketNumber, associatedData []byte) ([]byte, error) {
+func (h *cryptoSetupTLS) Get1RTTOpener() (Opener, error) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
 	if h.aead == nil {
-		return nil, errors.New("no 1-RTT sealer")
+		return nil, errors.New("no 1-RTT opener")
 	}
-	return h.aead.Open(dst, src, packetNumber, associatedData)
+	return h.aead, nil
 }
 
 func (h *cryptoSetupTLS) GetSealer() (protocol.EncryptionLevel, Sealer) {

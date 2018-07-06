@@ -3,6 +3,7 @@ package quic
 import (
 	"bytes"
 
+	"github.com/lucas-clemente/quic-go/internal/handshake"
 	"github.com/lucas-clemente/quic-go/internal/protocol"
 	"github.com/lucas-clemente/quic-go/internal/utils"
 	"github.com/lucas-clemente/quic-go/internal/wire"
@@ -18,9 +19,9 @@ type gQUICAEAD interface {
 	Open(dst, src []byte, packetNumber protocol.PacketNumber, associatedData []byte) ([]byte, protocol.EncryptionLevel, error)
 }
 
-type quicAEAD interface {
-	OpenHandshake(dst, src []byte, packetNumber protocol.PacketNumber, associatedData []byte) ([]byte, error)
-	Open1RTT(dst, src []byte, packetNumber protocol.PacketNumber, associatedData []byte) ([]byte, error)
+type openingManager interface {
+	GetHandshakeOpener() handshake.Opener
+	Get1RTTOpener() (handshake.Opener, error)
 }
 
 type packetUnpackerBase struct {
@@ -92,15 +93,15 @@ func (u *packetUnpackerGQUIC) Unpack(hdr *wire.Header, data []byte) (*unpackedPa
 // The packetUnpacker unpacks IETF QUIC packets.
 type packetUnpacker struct {
 	packetUnpackerBase
-	aead quicAEAD
+	openers openingManager
 }
 
 var _ unpacker = &packetUnpacker{}
 
-func newPacketUnpacker(aead quicAEAD, version protocol.VersionNumber) unpacker {
+func newPacketUnpacker(openers openingManager, version protocol.VersionNumber) unpacker {
 	return &packetUnpacker{
 		packetUnpackerBase: packetUnpackerBase{version: version},
-		aead:               aead,
+		openers:            openers,
 	}
 }
 
@@ -115,11 +116,16 @@ func (u *packetUnpacker) Unpack(hdr *wire.Header, data []byte) (*unpackedPacket,
 	var encryptionLevel protocol.EncryptionLevel
 	var err error
 	if hdr.IsLongHeader {
-		decrypted, err = u.aead.OpenHandshake(buf, data[hdr.ParsedLen:], hdr.PacketNumber, data[:hdr.ParsedLen])
+		opener := u.openers.GetHandshakeOpener()
+		decrypted, err = opener.Open(buf, data[hdr.ParsedLen:], hdr.PacketNumber, data[:hdr.ParsedLen])
 		encryptionLevel = protocol.EncryptionUnencrypted
 	} else {
-		decrypted, err = u.aead.Open1RTT(buf, data[hdr.ParsedLen:], hdr.PacketNumber, data[:hdr.ParsedLen])
-		encryptionLevel = protocol.EncryptionForwardSecure
+		var opener handshake.Opener
+		opener, err = u.openers.Get1RTTOpener()
+		if err == nil {
+			decrypted, err = opener.Open(buf, data[hdr.ParsedLen:], hdr.PacketNumber, data[:hdr.ParsedLen])
+			encryptionLevel = protocol.EncryptionForwardSecure
+		}
 	}
 	if err != nil {
 		// Wrap err in quicError so that public reset is sent by session

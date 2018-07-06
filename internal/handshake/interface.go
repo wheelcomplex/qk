@@ -15,6 +15,12 @@ type Sealer interface {
 	Overhead() int
 }
 
+// Opener opens a packet
+// Only used for IETF QUIC.
+type Opener interface {
+	Open(dst, src []byte, packetNumber protocol.PacketNumber, associatedData []byte) ([]byte, error)
+}
+
 // A TLSExtensionHandler sends and received the QUIC TLS extension.
 // It provides the parameters sent by the peer on a channel.
 type TLSExtensionHandler interface {
@@ -55,8 +61,8 @@ type CryptoSetup interface {
 type CryptoSetupTLS interface {
 	baseCryptoSetup
 
-	OpenHandshake(dst, src []byte, packetNumber protocol.PacketNumber, associatedData []byte) ([]byte, error)
-	Open1RTT(dst, src []byte, packetNumber protocol.PacketNumber, associatedData []byte) ([]byte, error)
+	GetHandshakeOpener() Opener
+	Get1RTTOpener() (Opener, error)
 }
 
 // ConnectionState records basic details about the QUIC connection.

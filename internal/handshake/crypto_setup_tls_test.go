@@ -110,7 +110,8 @@ var _ = Describe("TLS Crypto Setup", func() {
 
 			It("is used for opening", func() {
 				cs.nullAEAD.(*mockcrypto.MockAEAD).EXPECT().Open(nil, []byte("foobar enc"), protocol.PacketNumber(10), []byte{}).Return([]byte("foobar"), nil)
-				d, err := cs.OpenHandshake(nil, []byte("foobar enc"), 10, []byte{})
+				opener := cs.GetHandshakeOpener()
+				d, err := opener.Open(nil, []byte("foobar enc"), 10, []byte{})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(d).To(Equal([]byte("foobar")))
 			})
@@ -125,12 +126,18 @@ var _ = Describe("TLS Crypto Setup", func() {
 
 			It("errors if the has the wrong hash", func() {
 				cs.nullAEAD.(*mockcrypto.MockAEAD).EXPECT().Open(nil, []byte("foobar enc"), protocol.PacketNumber(10), []byte{}).Return(nil, errors.New("authentication failed"))
-				_, err := cs.OpenHandshake(nil, []byte("foobar enc"), 10, []byte{})
+				opener := cs.GetHandshakeOpener()
+				_, err := opener.Open(nil, []byte("foobar enc"), 10, []byte{})
 				Expect(err).To(MatchError("authentication failed"))
 			})
 		})
 
 		Context("forward-secure encryption", func() {
+			It("doesn't get an opener before the handshake compeletes", func() {
+				_, err := cs.Get1RTTOpener()
+				Expect(err).To(MatchError("no 1-RTT opener"))
+			})
+
 			It("is used for sealing after the handshake completes", func() {
 				doHandshake()
 				cs.aead.(*mockcrypto.MockAEAD).EXPECT().Seal(nil, []byte("foobar"), protocol.PacketNumber(5), []byte{}).Return([]byte("foobar forward sec"))
@@ -143,7 +150,9 @@ var _ = Describe("TLS Crypto Setup", func() {
 			It("is used for opening", func() {
 				doHandshake()
 				cs.aead.(*mockcrypto.MockAEAD).EXPECT().Open(nil, []byte("encrypted"), protocol.PacketNumber(6), []byte{}).Return([]byte("decrypted"), nil)
-				d, err := cs.Open1RTT(nil, []byte("encrypted"), 6, []byte{})
+				opener, err := cs.Get1RTTOpener()
+				Expect(err).ToNot(HaveOccurred())
+				d, err := opener.Open(nil, []byte("encrypted"), 6, []byte{})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(d).To(Equal([]byte("decrypted")))
 			})
