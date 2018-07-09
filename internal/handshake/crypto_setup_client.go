@@ -80,11 +80,6 @@ func NewCryptoSetupClient(
 	negotiatedVersions []protocol.VersionNumber,
 	logger utils.Logger,
 ) (CryptoSetup, error) {
-	nullAEAD, err := crypto.NewNullAEAD(protocol.PerspectiveClient, connID, version)
-	if err != nil {
-		return nil, err
-	}
-	divNonceChan := make(chan struct{})
 	cs := &cryptoSetupClient{
 		cryptoStream:       cryptoStream,
 		hostname:           hostname,
@@ -93,12 +88,12 @@ func NewCryptoSetupClient(
 		certManager:        crypto.NewCertManager(tlsConfig),
 		params:             params,
 		keyDerivation:      crypto.DeriveQuicCryptoAESKeys,
-		nullAEAD:           nullAEAD,
+		nullAEAD:           crypto.NewNullAEADFNV128a(protocol.PerspectiveClient),
 		paramsChan:         paramsChan,
 		handshakeEvent:     handshakeEvent,
 		initialVersion:     initialVersion,
 		negotiatedVersions: negotiatedVersions,
-		divNonceChan:       divNonceChan,
+		divNonceChan:       make(chan struct{}),
 		logger:             logger,
 	}
 	return cs, nil

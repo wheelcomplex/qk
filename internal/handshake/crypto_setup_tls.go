@@ -60,7 +60,7 @@ func NewCryptoSetupTLSClient(
 	tls MintTLS,
 	version protocol.VersionNumber,
 ) (CryptoSetupTLS, error) {
-	nullAEAD, err := crypto.NewNullAEAD(protocol.PerspectiveClient, connID, version)
+	nullAEAD, err := crypto.NewNullAEAD(connID, protocol.PerspectiveClient)
 	if err != nil {
 		return nil, err
 	}

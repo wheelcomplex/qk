@@ -16,6 +16,11 @@ type nullAEADFNV128a struct {
 
 var _ AEAD = &nullAEADFNV128a{}
 
+// NewNullAEADFNV128a creates a new FNV128a nullAEAD.
+func NewNullAEADFNV128a(pers protocol.Perspective) AEAD {
+	return &nullAEADFNV128a{perspective: pers}
+}
+
 // Open and verify the ciphertext
 func (n *nullAEADFNV128a) Open(dst, src []byte, packetNumber protocol.PacketNumber, associatedData []byte) ([]byte, error) {
 	if len(src) < 12 {

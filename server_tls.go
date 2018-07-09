@@ -145,7 +145,7 @@ func (s *serverTLS) handleInitialImpl(remoteAddr net.Addr, hdr *wire.Header, dat
 	}
 
 	// unpack packet and check stream frame contents
-	aead, err := crypto.NewNullAEAD(protocol.PerspectiveServer, hdr.DestConnectionID, protocol.VersionTLS)
+	aead, err := crypto.NewNullAEAD(hdr.DestConnectionID, protocol.PerspectiveServer)
 	if err != nil {
 		return nil, nil, err
 	}

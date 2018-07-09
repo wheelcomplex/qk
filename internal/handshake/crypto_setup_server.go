@@ -79,10 +79,6 @@ func NewCryptoSetup(
 	handshakeEvent chan<- struct{},
 	logger utils.Logger,
 ) (CryptoSetup, error) {
-	nullAEAD, err := crypto.NewNullAEAD(protocol.PerspectiveServer, connID, version)
-	if err != nil {
-		return nil, err
-	}
 	return &cryptoSetupServer{
 		cryptoStream:         cryptoStream,
 		connID:               connID,
@@ -93,7 +89,7 @@ func NewCryptoSetup(
 		scfg:                 scfg,
 		keyDerivation:        crypto.DeriveQuicCryptoAESKeys,
 		keyExchange:          getEphermalKEX,
-		nullAEAD:             nullAEAD,
+		nullAEAD:             crypto.NewNullAEADFNV128a(protocol.PerspectiveServer),
 		params:               params,
 		acceptSTKCallback:    acceptSTK,
 		sentSHLO:             make(chan struct{}),

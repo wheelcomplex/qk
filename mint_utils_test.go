@@ -35,7 +35,7 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 
 	BeforeEach(func() {
 		var err error
-		aead, err = crypto.NewNullAEAD(protocol.PerspectiveServer, connID, ver)
+		aead, err = crypto.NewNullAEAD(connID, protocol.PerspectiveServer)
 		Expect(err).ToNot(HaveOccurred())
 		buf := &bytes.Buffer{}
 		Expect(hdr.Write(buf, protocol.PerspectiveClient, ver)).To(Succeed())
@@ -98,7 +98,7 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 		packPacket := func(frames []wire.Frame) []byte {
 			buf := bytes.NewBuffer(hdrRaw)
 			payloadStartIndex := buf.Len()
-			aeadCl, err := crypto.NewNullAEAD(protocol.PerspectiveClient, connID, ver)
+			aeadCl, err := crypto.NewNullAEAD(connID, protocol.PerspectiveClient)
 			Expect(err).ToNot(HaveOccurred())
 			for _, f := range frames {
 				err := f.Write(buf, ver)
@@ -156,7 +156,7 @@ var _ = Describe("Packing and unpacking Initial packets", func() {
 			}
 			data, err := packUnencryptedPacket(aead, hdr, f, protocol.PerspectiveServer, utils.DefaultLogger)
 			Expect(err).ToNot(HaveOccurred())
-			aeadCl, err := crypto.NewNullAEAD(protocol.PerspectiveClient, connID, ver)
+			aeadCl, err := crypto.NewNullAEAD(connID, protocol.PerspectiveClient)
 			Expect(err).ToNot(HaveOccurred())
 			decrypted, err := aeadCl.Open(nil, data[hdr.ParsedLen:], hdr.PacketNumber, data[:hdr.ParsedLen])
 			Expect(err).ToNot(HaveOccurred())

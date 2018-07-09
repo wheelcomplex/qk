@@ -59,7 +59,7 @@ var _ = Describe("Stateless TLS handling", func() {
 		err := hdr.Write(hdrBuf, protocol.PerspectiveClient, protocol.VersionTLS)
 		Expect(err).ToNot(HaveOccurred())
 		hdr.ParsedLen = hdrBuf.Len()
-		aead, err := crypto.NewNullAEAD(protocol.PerspectiveClient, hdr.DestConnectionID, protocol.VersionTLS)
+		aead, err := crypto.NewNullAEAD(hdr.DestConnectionID, protocol.PerspectiveClient)
 		Expect(err).ToNot(HaveOccurred())
 		buf := &bytes.Buffer{}
 		err = f.Write(buf, protocol.VersionTLS)
@@ -80,7 +80,7 @@ var _ = Describe("Stateless TLS handling", func() {
 		hdrRaw := data[:len(data)-r.Len()]
 		var payload []byte
 		if r.Len() > 0 {
-			aead, err := crypto.NewNullAEAD(protocol.PerspectiveClient, clientDestConnID, protocol.VersionTLS)
+			aead, err := crypto.NewNullAEAD(clientDestConnID, protocol.PerspectiveClient)
 			Expect(err).ToNot(HaveOccurred())
 			payload, err = aead.Open(nil, data[len(data)-r.Len():], hdr.PacketNumber, hdrRaw)
 			Expect(err).ToNot(HaveOccurred())
