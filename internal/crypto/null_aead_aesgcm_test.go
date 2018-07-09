@@ -29,7 +29,7 @@ var _ = Describe("NullAEAD using AES-GCM", func() {
 
 		It("computes the client key and IV", func() {
 			clientSecret, _ := computeSecrets(connID)
-			key, iv := computeNullAEADKeyAndIV(clientSecret)
+			key, iv, _ := computeNullAEADKeyAndIV(clientSecret)
 			Expect(key).To(Equal([]byte{
 				0x3a, 0xd0, 0x54, 0x2c, 0x4a, 0x85, 0x84, 0x74,
 				0x00, 0x63, 0x04, 0x9e, 0x3b, 0x3c, 0xaa, 0xb2,
@@ -42,7 +42,7 @@ var _ = Describe("NullAEAD using AES-GCM", func() {
 
 		It("computes the server key and IV", func() {
 			_, serverSecret := computeSecrets(connID)
-			key, iv := computeNullAEADKeyAndIV(serverSecret)
+			key, iv, _ := computeNullAEADKeyAndIV(serverSecret)
 			Expect(key).To(Equal([]byte{
 				0xbe, 0xe4, 0xc2, 0x4d, 0x2a, 0xf1, 0x33, 0x80,
 				0xa9, 0xfa, 0x24, 0xa5, 0xe2, 0xba, 0x2c, 0xff,

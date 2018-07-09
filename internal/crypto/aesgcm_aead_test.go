@@ -33,9 +33,9 @@ var _ = Describe("AES-GCM", func() {
 				rand.Reader.Read(ivAlice)
 				rand.Reader.Read(ivBob)
 				var err error
-				alice, err = NewAEADAESGCM(keyBob, keyAlice, ivBob, ivAlice)
+				alice, err = newAEADAESGCM(keyBob, keyAlice, ivBob, ivAlice)
 				Expect(err).ToNot(HaveOccurred())
-				bob, err = NewAEADAESGCM(keyAlice, keyBob, ivAlice, ivBob)
+				bob, err = newAEADAESGCM(keyAlice, keyBob, ivAlice, ivBob)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -67,9 +67,9 @@ var _ = Describe("AES-GCM", func() {
 			It("rejects wrong key and iv sizes", func() {
 				e := "AES-GCM: expected 12 byte IVs"
 				var err error
-				_, err = NewAEADAESGCM(keyBob, keyAlice, ivBob[1:], ivAlice)
+				_, err = newAEADAESGCM(keyBob, keyAlice, ivBob[1:], ivAlice)
 				Expect(err).To(MatchError(e))
-				_, err = NewAEADAESGCM(keyBob, keyAlice, ivBob, ivAlice[1:])
+				_, err = newAEADAESGCM(keyBob, keyAlice, ivBob, ivAlice[1:])
 				Expect(err).To(MatchError(e))
 			})
 		})
@@ -78,7 +78,7 @@ var _ = Describe("AES-GCM", func() {
 	It("errors when an invalid key size is used", func() {
 		keyAlice = make([]byte, 17)
 		keyBob = make([]byte, 17)
-		_, err := NewAEADAESGCM(keyBob, keyAlice, ivBob, ivAlice)
+		_, err := newAEADAESGCM(keyBob, keyAlice, ivBob, ivAlice)
 		Expect(err).To(MatchError("crypto/aes: invalid key size 17"))
 	})
 })

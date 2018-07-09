@@ -147,7 +147,7 @@ var _ = Describe("Stateless TLS handling", func() {
 			mintReply.Write([]byte("Server Hello"))
 		})
 		run := make(chan struct{})
-		server.newSession = func(connection, sessionRunner, protocol.ConnectionID, protocol.ConnectionID, protocol.PacketNumber, *Config, handshake.MintTLS, *handshake.CryptoStreamConn, crypto.AEAD, *handshake.TransportParameters, protocol.VersionNumber, utils.Logger) (quicSession, error) {
+		server.newSession = func(connection, sessionRunner, protocol.ConnectionID, protocol.ConnectionID, protocol.PacketNumber, *Config, handshake.MintTLS, *handshake.CryptoStreamConn, handshake.AEADWithPacketNumberCrypto, *handshake.TransportParameters, protocol.VersionNumber, utils.Logger) (quicSession, error) {
 			sess := NewMockQuicSession(mockCtrl)
 			cryptoStream := NewMockCryptoStream(mockCtrl)
 			cryptoStream.EXPECT().setReadOffset(gomock.Any())

@@ -21,6 +21,13 @@ type Opener interface {
 	Open(dst, src []byte, packetNumber protocol.PacketNumber, associatedData []byte) ([]byte, error)
 }
 
+// AEADWithPacketNumberCrypto is an AEAD than can encrypt and decrypt packet numbers
+type AEADWithPacketNumberCrypto interface {
+	crypto.AEAD
+	DecryptPacketNumber(packet []byte) (protocol.PacketNumber, protocol.PacketNumberLen, error)
+	EncryptPacketNumber(packet []byte, pnLen protocol.PacketNumberLen) error
+}
+
 // A TLSExtensionHandler sends and received the QUIC TLS extension.
 // It provides the parameters sent by the peer on a channel.
 type TLSExtensionHandler interface {

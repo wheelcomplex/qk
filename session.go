@@ -12,7 +12,6 @@ import (
 
 	"github.com/lucas-clemente/quic-go/internal/ackhandler"
 	"github.com/lucas-clemente/quic-go/internal/congestion"
-	"github.com/lucas-clemente/quic-go/internal/crypto"
 	"github.com/lucas-clemente/quic-go/internal/flowcontrol"
 	"github.com/lucas-clemente/quic-go/internal/handshake"
 	"github.com/lucas-clemente/quic-go/internal/protocol"
@@ -295,7 +294,7 @@ func newTLSServerSession(
 	config *Config,
 	tls handshake.MintTLS,
 	cryptoStreamConn *handshake.CryptoStreamConn,
-	nullAEAD crypto.AEAD,
+	nullAEAD handshake.AEADWithPacketNumberCrypto,
 	peerParams *handshake.TransportParameters,
 	v protocol.VersionNumber,
 	logger utils.Logger,

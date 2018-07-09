@@ -20,9 +20,8 @@ var _ AEAD = &aeadAESGCM{}
 
 const ivLen = 12
 
-// NewAEADAESGCM creates a AEAD using AES-GCM
-func NewAEADAESGCM(otherKey []byte, myKey []byte, otherIV []byte, myIV []byte) (AEAD, error) {
-	// the IVs need to be at least 8 bytes long, otherwise we can't compute the nonce
+// newAEADAESGCM creates a AEAD using AES-GCM
+func newAEADAESGCM(otherKey []byte, myKey []byte, otherIV []byte, myIV []byte) (AEAD, error) {
 	if len(otherIV) != ivLen || len(myIV) != ivLen {
 		return nil, errors.New("AES-GCM: expected 12 byte IVs")
 	}

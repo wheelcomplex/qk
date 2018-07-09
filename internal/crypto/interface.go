@@ -16,3 +16,9 @@ type ctr interface {
 	Decrypt(ciphertext, iv []byte) error
 	CTRIVSize() int
 }
+
+// AEADCTR is an AEAD that also implements the CTR for QUIC's packet number encryption.
+type AEADCTR interface {
+	AEAD
+	ctr
+}

@@ -28,7 +28,7 @@ type serverTLS struct {
 	params            *handshake.TransportParameters
 	newMintConn       func(*handshake.CryptoStreamConn, protocol.VersionNumber) (handshake.MintTLS, <-chan handshake.TransportParameters, error)
 
-	newSession func(connection, sessionRunner, protocol.ConnectionID, protocol.ConnectionID, protocol.PacketNumber, *Config, handshake.MintTLS, *handshake.CryptoStreamConn, crypto.AEAD, *handshake.TransportParameters, protocol.VersionNumber, utils.Logger) (quicSession, error)
+	newSession func(connection, sessionRunner, protocol.ConnectionID, protocol.ConnectionID, protocol.PacketNumber, *Config, handshake.MintTLS, *handshake.CryptoStreamConn, handshake.AEADWithPacketNumberCrypto, *handshake.TransportParameters, protocol.VersionNumber, utils.Logger) (quicSession, error)
 
 	sessionRunner sessionRunner
 	sessionChan   chan<- tlsSession
@@ -145,7 +145,7 @@ func (s *serverTLS) handleInitialImpl(remoteAddr net.Addr, hdr *wire.Header, dat
 	}
 
 	// unpack packet and check stream frame contents
-	aead, err := crypto.NewNullAEAD(hdr.DestConnectionID, protocol.PerspectiveServer)
+	aead, err := handshake.NewNullAEAD(hdr.DestConnectionID, protocol.PerspectiveServer)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -164,7 +164,12 @@ func (s *serverTLS) handleInitialImpl(remoteAddr net.Addr, hdr *wire.Header, dat
 	return sess, connID, nil
 }
 
-func (s *serverTLS) handleUnpackedInitial(remoteAddr net.Addr, hdr *wire.Header, frame *wire.StreamFrame, aead crypto.AEAD) (packetHandler, protocol.ConnectionID, error) {
+func (s *serverTLS) handleUnpackedInitial(
+	remoteAddr net.Addr,
+	hdr *wire.Header,
+	frame *wire.StreamFrame,
+	aead handshake.AEADWithPacketNumberCrypto,
+) (packetHandler, protocol.ConnectionID, error) {
 	version := hdr.Version
 	bc := handshake.NewCryptoStreamConn(remoteAddr)
 	bc.AddDataForReading(frame.Data)

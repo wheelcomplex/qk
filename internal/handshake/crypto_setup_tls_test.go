@@ -6,7 +6,6 @@ import (
 
 	"github.com/bifurcation/mint"
 	"github.com/lucas-clemente/quic-go/internal/crypto"
-	"github.com/lucas-clemente/quic-go/internal/mocks/crypto"
 	"github.com/lucas-clemente/quic-go/internal/mocks/handshake"
 	"github.com/lucas-clemente/quic-go/internal/protocol"
 
@@ -14,8 +13,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func mockKeyDerivation(crypto.TLSExporter, protocol.Perspective) (crypto.AEAD, error) {
-	return mockcrypto.NewMockAEAD(mockCtrl), nil
+func mockKeyDerivation(crypto.TLSExporter) (AEADWithPacketNumberCrypto, error) {
+	return mockhandshake.NewMockAEADWithPacketNumberCrypto(mockCtrl), nil
 }
 
 var _ = Describe("TLS Crypto Setup", func() {
@@ -33,7 +32,7 @@ var _ = Describe("TLS Crypto Setup", func() {
 			handshakeEvent,
 			protocol.VersionTLS,
 		).(*cryptoSetupTLS)
-		cs.nullAEAD = mockcrypto.NewMockAEAD(mockCtrl)
+		cs.nullAEAD = mockhandshake.NewMockAEADWithPacketNumberCrypto(mockCtrl)
 	})
 
 	It("errors when the handshake fails", func() {
@@ -101,7 +100,7 @@ var _ = Describe("TLS Crypto Setup", func() {
 
 		Context("null encryption", func() {
 			It("is used initially", func() {
-				cs.nullAEAD.(*mockcrypto.MockAEAD).EXPECT().Seal(nil, []byte("foobar"), protocol.PacketNumber(5), []byte{}).Return([]byte("foobar signed"))
+				cs.nullAEAD.(*mockhandshake.MockAEADWithPacketNumberCrypto).EXPECT().Seal(nil, []byte("foobar"), protocol.PacketNumber(5), []byte{}).Return([]byte("foobar signed"))
 				enc, sealer := cs.GetSealer()
 				Expect(enc).To(Equal(protocol.EncryptionUnencrypted))
 				d := sealer.Seal(nil, []byte("foobar"), 5, []byte{})
@@ -109,7 +108,7 @@ var _ = Describe("TLS Crypto Setup", func() {
 			})
 
 			It("is used for opening", func() {
-				cs.nullAEAD.(*mockcrypto.MockAEAD).EXPECT().Open(nil, []byte("foobar enc"), protocol.PacketNumber(10), []byte{}).Return([]byte("foobar"), nil)
+				cs.nullAEAD.(*mockhandshake.MockAEADWithPacketNumberCrypto).EXPECT().Open(nil, []byte("foobar enc"), protocol.PacketNumber(10), []byte{}).Return([]byte("foobar"), nil)
 				opener := cs.GetHandshakeOpener()
 				d, err := opener.Open(nil, []byte("foobar enc"), 10, []byte{})
 				Expect(err).ToNot(HaveOccurred())
@@ -117,7 +116,7 @@ var _ = Describe("TLS Crypto Setup", func() {
 			})
 
 			It("is used for crypto stream", func() {
-				cs.nullAEAD.(*mockcrypto.MockAEAD).EXPECT().Seal(nil, []byte("foobar"), protocol.PacketNumber(20), []byte{}).Return([]byte("foobar signed"))
+				cs.nullAEAD.(*mockhandshake.MockAEADWithPacketNumberCrypto).EXPECT().Seal(nil, []byte("foobar"), protocol.PacketNumber(20), []byte{}).Return([]byte("foobar signed"))
 				enc, sealer := cs.GetSealerForCryptoStream()
 				Expect(enc).To(Equal(protocol.EncryptionUnencrypted))
 				d := sealer.Seal(nil, []byte("foobar"), 20, []byte{})
@@ -125,7 +124,7 @@ var _ = Describe("TLS Crypto Setup", func() {
 			})
 
 			It("errors if the has the wrong hash", func() {
-				cs.nullAEAD.(*mockcrypto.MockAEAD).EXPECT().Open(nil, []byte("foobar enc"), protocol.PacketNumber(10), []byte{}).Return(nil, errors.New("authentication failed"))
+				cs.nullAEAD.(*mockhandshake.MockAEADWithPacketNumberCrypto).EXPECT().Open(nil, []byte("foobar enc"), protocol.PacketNumber(10), []byte{}).Return(nil, errors.New("authentication failed"))
 				opener := cs.GetHandshakeOpener()
 				_, err := opener.Open(nil, []byte("foobar enc"), 10, []byte{})
 				Expect(err).To(MatchError("authentication failed"))
@@ -140,7 +139,7 @@ var _ = Describe("TLS Crypto Setup", func() {
 
 			It("is used for sealing after the handshake completes", func() {
 				doHandshake()
-				cs.aead.(*mockcrypto.MockAEAD).EXPECT().Seal(nil, []byte("foobar"), protocol.PacketNumber(5), []byte{}).Return([]byte("foobar forward sec"))
+				cs.aead.(*mockhandshake.MockAEADWithPacketNumberCrypto).EXPECT().Seal(nil, []byte("foobar"), protocol.PacketNumber(5), []byte{}).Return([]byte("foobar forward sec"))
 				enc, sealer := cs.GetSealer()
 				Expect(enc).To(Equal(protocol.EncryptionForwardSecure))
 				d := sealer.Seal(nil, []byte("foobar"), 5, []byte{})
@@ -149,7 +148,7 @@ var _ = Describe("TLS Crypto Setup", func() {
 
 			It("is used for opening", func() {
 				doHandshake()
-				cs.aead.(*mockcrypto.MockAEAD).EXPECT().Open(nil, []byte("encrypted"), protocol.PacketNumber(6), []byte{}).Return([]byte("decrypted"), nil)
+				cs.aead.(*mockhandshake.MockAEADWithPacketNumberCrypto).EXPECT().Open(nil, []byte("encrypted"), protocol.PacketNumber(6), []byte{}).Return([]byte("decrypted"), nil)
 				opener, err := cs.Get1RTTOpener()
 				Expect(err).ToNot(HaveOccurred())
 				d, err := opener.Open(nil, []byte("encrypted"), 6, []byte{})
@@ -161,7 +160,7 @@ var _ = Describe("TLS Crypto Setup", func() {
 		Context("forcing encryption levels", func() {
 			It("forces null encryption", func() {
 				doHandshake()
-				cs.nullAEAD.(*mockcrypto.MockAEAD).EXPECT().Seal(nil, []byte("foobar"), protocol.PacketNumber(5), []byte{}).Return([]byte("foobar signed"))
+				cs.nullAEAD.(*mockhandshake.MockAEADWithPacketNumberCrypto).EXPECT().Seal(nil, []byte("foobar"), protocol.PacketNumber(5), []byte{}).Return([]byte("foobar signed"))
 				sealer, err := cs.GetSealerWithEncryptionLevel(protocol.EncryptionUnencrypted)
 				Expect(err).ToNot(HaveOccurred())
 				d := sealer.Seal(nil, []byte("foobar"), 5, []byte{})
@@ -170,7 +169,7 @@ var _ = Describe("TLS Crypto Setup", func() {
 
 			It("forces forward-secure encryption", func() {
 				doHandshake()
-				cs.aead.(*mockcrypto.MockAEAD).EXPECT().Seal(nil, []byte("foobar"), protocol.PacketNumber(5), []byte{}).Return([]byte("foobar forward sec"))
+				cs.aead.(*mockhandshake.MockAEADWithPacketNumberCrypto).EXPECT().Seal(nil, []byte("foobar"), protocol.PacketNumber(5), []byte{}).Return([]byte("foobar forward sec"))
 				sealer, err := cs.GetSealerWithEncryptionLevel(protocol.EncryptionForwardSecure)
 				Expect(err).ToNot(HaveOccurred())
 				d := sealer.Seal(nil, []byte("foobar"), 5, []byte{})

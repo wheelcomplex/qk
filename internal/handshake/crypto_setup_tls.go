@@ -15,7 +15,7 @@ import (
 var ErrCloseSessionForRetry = errors.New("closing session in order to recreate after a retry")
 
 // KeyDerivationFunction is used for key derivation
-type KeyDerivationFunction func(crypto.TLSExporter, protocol.Perspective) (crypto.AEAD, error)
+type KeyDerivationFunction func(crypto.TLSExporter) (AEADWithPacketNumberCrypto, error)
 
 type cryptoSetupTLS struct {
 	mutex sync.RWMutex
@@ -23,8 +23,8 @@ type cryptoSetupTLS struct {
 	perspective protocol.Perspective
 
 	keyDerivation KeyDerivationFunction
-	nullAEAD      crypto.AEAD
-	aead          crypto.AEAD
+	nullAEAD      AEADWithPacketNumberCrypto
+	aead          AEADWithPacketNumberCrypto
 
 	tls            MintTLS
 	cryptoStream   *CryptoStreamConn
@@ -37,16 +37,22 @@ var _ CryptoSetupTLS = &cryptoSetupTLS{}
 func NewCryptoSetupTLSServer(
 	tls MintTLS,
 	cryptoStream *CryptoStreamConn,
-	nullAEAD crypto.AEAD,
+	nullAEAD AEADWithPacketNumberCrypto,
 	handshakeEvent chan<- struct{},
 	version protocol.VersionNumber,
 ) CryptoSetupTLS {
 	return &cryptoSetupTLS{
-		tls:            tls,
-		cryptoStream:   cryptoStream,
-		nullAEAD:       nullAEAD,
-		perspective:    protocol.PerspectiveServer,
-		keyDerivation:  crypto.DeriveAESKeys,
+		tls:          tls,
+		cryptoStream: cryptoStream,
+		nullAEAD:     nullAEAD,
+		perspective:  protocol.PerspectiveServer,
+		keyDerivation: func(tls crypto.TLSExporter) (AEADWithPacketNumberCrypto, error) {
+			aead, err := crypto.DeriveAESKeys(tls, protocol.PerspectiveServer)
+			if err != nil {
+				return nil, err
+			}
+			return newAEADWithPacketNumberCrypto(aead), nil
+		},
 		handshakeEvent: handshakeEvent,
 	}
 }
@@ -66,10 +72,16 @@ func NewCryptoSetupTLSClient(
 	}
 
 	return &cryptoSetupTLS{
-		perspective:    protocol.PerspectiveClient,
-		tls:            tls,
-		nullAEAD:       nullAEAD,
-		keyDerivation:  crypto.DeriveAESKeys,
+		perspective: protocol.PerspectiveClient,
+		tls:         tls,
+		nullAEAD:    newAEADWithPacketNumberCrypto(nullAEAD),
+		keyDerivation: func(tls crypto.TLSExporter) (AEADWithPacketNumberCrypto, error) {
+			aead, err := crypto.DeriveAESKeys(tls, protocol.PerspectiveClient)
+			if err != nil {
+				return nil, err
+			}
+			return newAEADWithPacketNumberCrypto(aead), nil
+		},
 		handshakeEvent: handshakeEvent,
 	}, nil
 }
@@ -96,7 +108,7 @@ handshakeLoop:
 		}
 	}
 
-	aead, err := h.keyDerivation(h.tls, h.perspective)
+	aead, err := h.keyDerivation(h.tls)
 	if err != nil {
 		return err
 	}
