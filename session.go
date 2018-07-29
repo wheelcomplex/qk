@@ -341,7 +341,6 @@ func newTLSServerSession(
 	if err := s.postSetup(); err != nil {
 		return nil, err
 	}
-	s.peerParams = peerParams
 	s.processTransportParameters(peerParams)
 	s.unpacker = newPacketUnpacker(cs, s.version)
 	return s, nil
@@ -407,6 +406,7 @@ var newTLSClientSession = func(
 }
 
 func (s *session) preSetup() {
+	s.peerParams = &handshake.TransportParameters{IdleTimeout: protocol.MinRemoteIdleTimeout}
 	s.rttStats = &congestion.RTTStats{}
 	s.sentPacketHandler = ackhandler.NewSentPacketHandler(s.rttStats, s.logger, s.version)
 	s.connFlowController = flowcontrol.NewConnectionFlowController(
@@ -1169,17 +1169,13 @@ func (s *session) newStream(id protocol.StreamID) streamI {
 }
 
 func (s *session) newFlowController(id protocol.StreamID) flowcontrol.StreamFlowController {
-	var initialSendWindow protocol.ByteCount
-	if s.peerParams != nil {
-		initialSendWindow = s.peerParams.StreamFlowControlWindow
-	}
 	return flowcontrol.NewStreamFlowController(
 		id,
 		s.version.StreamContributesToConnectionFlowControl(id),
 		s.connFlowController,
 		protocol.ReceiveStreamFlowControlWindow,
 		protocol.ByteCount(s.config.MaxReceiveStreamFlowControlWindow),
-		initialSendWindow,
+		s.peerParams.StreamFlowControlWindow,
 		s.onHasStreamWindowUpdate,
 		s.rttStats,
 		s.logger,
