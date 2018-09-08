@@ -4,6 +4,9 @@ group: travis_latest
 addons:
   hosts:
     - quic.clemente.io
+  apt:
+    packages:
+      - libnss3-tools # for certutils
 
 language: go
 
