@@ -1,6 +1,6 @@
 # aes12
 
-This package modifies the AES-GCM implementation from Go's standard library to use 12 byte tag sizes. It is not intended for a general audience, and used in [quic-go](https://github.com/lucas-clemente/quic-go).
+This package modifies the AES-GCM implementation from Go's standard library to use 12 byte tag sizes. It is not intended for a general audience, and used in [quic-go](https://github.com/wheelcomplex/qk).
 
 To make use of the in-place encryption / decryption feature, the `dst` parameter to `Seal` and `Open` should be 16 bytes longer than plaintext, not 12.
 

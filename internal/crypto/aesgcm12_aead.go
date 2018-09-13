@@ -7,7 +7,7 @@ import (
 
 	"github.com/lucas-clemente/aes12"
 
-	"github.com/lucas-clemente/quic-go/internal/protocol"
+	"github.com/wheelcomplex/qk/internal/protocol"
 )
 
 type aeadAESGCM12 struct {

@@ -3,10 +3,10 @@ package quic
 import (
 	"fmt"
 
-	"github.com/lucas-clemente/quic-go/internal/flowcontrol"
-	"github.com/lucas-clemente/quic-go/internal/handshake"
-	"github.com/lucas-clemente/quic-go/internal/protocol"
-	"github.com/lucas-clemente/quic-go/internal/wire"
+	"github.com/wheelcomplex/qk/internal/flowcontrol"
+	"github.com/wheelcomplex/qk/internal/handshake"
+	"github.com/wheelcomplex/qk/internal/protocol"
+	"github.com/wheelcomplex/qk/internal/wire"
 )
 
 type streamType int

@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	_ "github.com/lucas-clemente/quic-go/integrationtests/tools/testlog"
+	_ "github.com/wheelcomplex/qk/integrationtests/tools/testlog"
 )
 
 func TestSelf(t *testing.T) {

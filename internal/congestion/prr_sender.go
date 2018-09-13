@@ -1,7 +1,7 @@
 package congestion
 
 import (
-	"github.com/lucas-clemente/quic-go/internal/protocol"
+	"github.com/wheelcomplex/qk/internal/protocol"
 )
 
 // PrrSender implements the Proportional Rate Reduction (PRR) per RFC 6937

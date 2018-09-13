@@ -6,11 +6,11 @@ import (
 	"math"
 	"time"
 
-	"github.com/lucas-clemente/quic-go/internal/congestion"
-	"github.com/lucas-clemente/quic-go/internal/protocol"
-	"github.com/lucas-clemente/quic-go/internal/utils"
-	"github.com/lucas-clemente/quic-go/internal/wire"
-	"github.com/lucas-clemente/quic-go/qerr"
+	"github.com/wheelcomplex/qk/internal/congestion"
+	"github.com/wheelcomplex/qk/internal/protocol"
+	"github.com/wheelcomplex/qk/internal/utils"
+	"github.com/wheelcomplex/qk/internal/wire"
+	"github.com/wheelcomplex/qk/qerr"
 )
 
 const (

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lucas-clemente/quic-go/internal/utils"
+	"github.com/wheelcomplex/qk/internal/utils"
 )
 
 // LogFrame logs a frame, either sent or received

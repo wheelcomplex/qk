@@ -3,7 +3,7 @@ package congestion
 import (
 	"time"
 
-	"github.com/lucas-clemente/quic-go/internal/protocol"
+	"github.com/wheelcomplex/qk/internal/protocol"
 )
 
 // Bandwidth of a connection

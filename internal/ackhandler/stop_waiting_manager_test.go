@@ -1,7 +1,7 @@
 package ackhandler
 
 import (
-	"github.com/lucas-clemente/quic-go/internal/wire"
+	"github.com/wheelcomplex/qk/internal/wire"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

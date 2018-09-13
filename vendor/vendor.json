@@ -40,7 +40,7 @@
 		},
 		{
 			"checksumSHA1": "OA9E+y7g05x/mWJJHmA7oPxWKQo=",
-			"path": "github.com/lucas-clemente/quic-go-certificates",
+			"path": "github.com/wheelcomplex/qk-certificates",
 			"revision": "d2f86524cced5186554df90d92529757d22c1cb6",
 			"revisionTime": "2016-08-23T09:51:56Z"
 		},
@@ -57,5 +57,5 @@
 			"revisionTime": "2017-12-16T04:08:15Z"
 		}
 	],
-	"rootPath": "github.com/lucas-clemente/quic-go"
+	"rootPath": "github.com/wheelcomplex/qk"
 }

@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lucas-clemente/quic-go/internal/crypto"
-	"github.com/lucas-clemente/quic-go/internal/protocol"
+	"github.com/wheelcomplex/qk/internal/crypto"
+	"github.com/wheelcomplex/qk/internal/protocol"
 )
 
 var (
